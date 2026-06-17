@@ -1,6 +1,5 @@
 # Event Ledger
-
-Take-home project: two .NET microservices that process financial transaction events with idempotency, out-of-order tolerance, observability, and resiliency.
+An Event Ledger system composed of two microservices.Two .NET microservices that process financial transaction events with idempotency, out-of-order tolerance, observability, and resiliency.
 
 ---
 
