@@ -1,0 +1,39 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+[Dd]ebug/
+[Rr]elease/
+*.nupkg
+*.snupkg
+project.lock.json
+project.fragment.lock.json
+
+## IDE
+.cursor/
+.vs/
+.idea/
+*.swp
+*~
+
+## Test / coverage
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+
+## OS
+.DS_Store
+Thumbs.db
+
+## Local env
+.env
+*.local.json
+
+## SQLite (optional local dev files)
+*.db
+*.db-shm
+*.db-wal
