@@ -1,0 +1,43 @@
+services:
+  account-service:
+    build:
+      context: ./src
+      dockerfile: AccountService/Dockerfile
+    environment:
+      - ASPNETCORE_URLS=http://+:8081
+      - ConnectionStrings__Default=Data Source=/data/account.db
+    volumes:
+      - account-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - eventledger
+
+  event-gateway:
+    build:
+      context: ./src
+      dockerfile: EventGateway/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - ASPNETCORE_URLS=http://+:8080
+      - AccountService__BaseUrl=http://account-service:8081
+      - ConnectionStrings__Default=Data Source=/data/gateway.db
+    depends_on:
+      account-service:
+        condition: service_healthy
+    volumes:
+      - gateway-data:/data
+    networks:
+      - eventledger
+
+networks:
+  eventledger:
+
+volumes:
+  account-data:
+  gateway-data:
