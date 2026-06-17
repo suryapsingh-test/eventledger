@@ -1,0 +1,13 @@
+{
+  "taskId": null,
+  "taskTitle": null,
+  "stage": "S7",
+  "stageName": "Closeout",
+  "agent": null,
+  "status": "Sprint Complete",
+  "awaitingDeveloperApproval": false,
+  "lastCompletedTaskId": "T-22",
+  "nextTaskAfterApproval": null,
+  "sprintStatus": "Done",
+  "developerDecision": "Approved"
+}

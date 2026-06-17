@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="refresh" content="5" />
+  <title>Event Ledger - Project Dashboard</title>
+  <link rel="stylesheet" href="dashboard-theme.css" />
+</head>
+<body>
+<header>
+  <div>
+    <h1>Event Ledger - Project Dashboard</h1>
+    <p class="subtitle">Multi-agent AI SDLC - full task breakdown</p>
+    <p style="margin-top:0.5rem"><span class="badge badge-done">Sprint Complete</span></p>
+  </div>
+  <div class="meta">
+    <div><strong>Owner:</strong> ORCH-01</div>
+    <div><strong>Stage:</strong> S7 - Closeout</div>
+    <div><strong>Updated:</strong> 2026-06-17</div>
+    <div><strong>Auto-refresh:</strong> 5s</div>
+    <div><a href="../artifacts/context/session-context.md">session-context.md</a></div>
+  </div>
+</header>
+<div class="grid">
+  <div class="card"><h2>Sprint progress</h2>
+    <div class="metric">100%</div>
+    <div class="metric-label">27 of 27 tasks done</div>
+    <div class="progress-bar"><div class="progress-fill" style="width:100%"></div></div>
+  </div>
+  <div class="card"><h2>Current focus</h2>
+    <div style="font-size:1.1rem;font-weight:600">None (sprint complete)</div>
+    <div class="metric-label">No pending approvals</div>
+  </div>
+  <div class="card"><h2>Source</h2>
+    <p class="metric-label"><a href="../artifacts/01-sprint-plan/task-tracker.json">task-tracker.json</a></p>
+    <p class="metric-label"><a href="../artifacts/context/approval-log.md">approval-log.md</a></p>
+  </div>
+  <div class="card"><h2>Regenerate</h2>
+    <p style="font-size:0.85rem"><code>.\scripts\generate-dashboard.ps1</code></p>
+  </div>
+</div>
+<div class="section card"><h2>Stage breakdown</h2><table>
+<thead><tr><th>Stage</th><th>Name</th><th>Tasks done</th><th>Status</th></tr></thead><tbody>
+<tr><td><strong>S1</strong></td><td>Planning</td><td>2 / 2</td><td><span class="status status-done">Complete</span></td></tr>
+<tr><td><strong>S2</strong></td><td>Requirements</td><td>1 / 1</td><td><span class="status status-done">Complete</span></td></tr>
+<tr><td><strong>S3</strong></td><td>Architecture</td><td>2 / 2</td><td><span class="status status-done">Complete</span></td></tr>
+<tr><td><strong>S4</strong></td><td>Implementation</td><td>13 / 13</td><td><span class="status status-done">Complete</span></td></tr>
+<tr><td><strong>S5</strong></td><td>Review</td><td>3 / 3</td><td><span class="status status-done">Complete</span></td></tr>
+<tr><td><strong>S6</strong></td><td>QA</td><td>5 / 5</td><td><span class="status status-done">Complete</span></td></tr>
+<tr><td><strong>S7</strong></td><td>Closeout</td><td>1 / 1</td><td><span class="status status-done">Complete</span></td></tr>
+</tbody></table></div>
+<div class="section card"><h2>Workflow pipeline</h2><div class="pipeline">
+<span class="phase done">PM</span>
+<span class="arrow">-&gt;</span>
+<span class="phase done">BA</span>
+<span class="arrow">-&gt;</span>
+<span class="phase done">ARCH</span>
+<span class="arrow">-&gt;</span>
+<span class="phase done">DEV</span>
+<span class="arrow">-&gt;</span>
+<span class="phase done">REV</span>
+<span class="arrow">-&gt;</span>
+<span class="phase done">QA</span>
+<span class="arrow">-&gt;</span>
+<span class="phase done">Close</span>
+</div></div>
+<div class="section card"><h2>All tasks (detailed)</h2><table>
+<thead><tr><th>ID</th><th>Stage</th><th>Task</th><th>Agent</th><th>Status</th><th>Depends on</th><th>Group</th></tr></thead><tbody>
+<tr><td>T-01</td><td>S1</td><td>Create repo + ai-agent-skills</td><td>PM-01</td><td><span class="status status-done">Done</span></td><td>-</td><td>-</td></tr>
+<tr><td>T-02</td><td>S1</td><td>Sprint plan + backlog + tracker</td><td>PM-01</td><td><span class="status status-done">Done</span></td><td>T-01</td><td>-</td></tr>
+<tr><td>T-03</td><td>S2</td><td>Requirements + acceptance criteria</td><td>BA-01</td><td><span class="status status-done">Done</span></td><td>T-02</td><td>-</td></tr>
+<tr><td>T-04</td><td>S3</td><td>Architecture design</td><td>ARCH-01</td><td><span class="status status-done">Done</span></td><td>T-03</td><td>-</td></tr>
+<tr><td>T-05</td><td>S3</td><td>Developer approval â€” architecture</td><td>Developer</td><td><span class="status status-done">Done</span></td><td>T-04</td><td>-</td></tr>
+<tr><td>T-06</td><td>S4</td><td>Account Service scaffold</td><td>DEV-02</td><td><span class="status status-done">Done</span></td><td>T-05</td><td>dev-wave-1</td></tr>
+<tr><td>T-07</td><td>S4</td><td>Account transactions API</td><td>DEV-02</td><td><span class="status status-done">Done</span></td><td>T-06</td><td>dev-wave-1</td></tr>
+<tr><td>T-08</td><td>S4</td><td>Account read APIs</td><td>DEV-02</td><td><span class="status status-done">Done</span></td><td>T-07</td><td>dev-wave-1</td></tr>
+<tr><td>T-09</td><td>S4</td><td>Account observability</td><td>DEV-02</td><td><span class="status status-done">Done</span></td><td>T-08</td><td>dev-wave-1</td></tr>
+<tr><td>T-10</td><td>S4</td><td>Gateway scaffold</td><td>DEV-01</td><td><span class="status status-done">Done</span></td><td>T-05</td><td>dev-wave-1</td></tr>
+<tr><td>T-11</td><td>S4</td><td>POST /events</td><td>DEV-01</td><td><span class="status status-done">Done</span></td><td>T-10, T-07</td><td>dev-wave-1</td></tr>
+<tr><td>T-12</td><td>S4</td><td>GET /events</td><td>DEV-01</td><td><span class="status status-done">Done</span></td><td>T-11</td><td>dev-wave-1</td></tr>
+<tr><td>T-13</td><td>S4</td><td>Polly resiliency</td><td>DEV-03</td><td><span class="status status-done">Done</span></td><td>T-11</td><td>dev-wave-2</td></tr>
+<tr><td>T-14</td><td>S4</td><td>Trace propagation</td><td>DEV-03</td><td><span class="status status-done">Done</span></td><td>T-11</td><td>dev-wave-2</td></tr>
+<tr><td>T-15</td><td>S4</td><td>Auditing + metrics</td><td>DEV-01</td><td><span class="status status-done">Done</span></td><td>T-11</td><td>dev-wave-1</td></tr>
+<tr><td>T-16</td><td>S4</td><td>Gateway observability</td><td>DEV-01</td><td><span class="status status-done">Done</span></td><td>T-12</td><td>dev-wave-1</td></tr>
+<tr><td>T-17</td><td>S4</td><td>Docker Compose</td><td>DEV-03</td><td><span class="status status-done">Done</span></td><td>T-16</td><td>dev-wave-2</td></tr>
+<tr><td>T-18</td><td>S4</td><td>README completion</td><td>DEV-03</td><td><span class="status status-done">Done</span></td><td>T-17</td><td>dev-wave-2</td></tr>
+<tr><td>T-18a</td><td>S5</td><td>Code review</td><td>REV-01</td><td><span class="status status-done">Done</span></td><td>T-18</td><td>review-wave-1</td></tr>
+<tr><td>T-18b</td><td>S5</td><td>OWASP security review</td><td>REV-02</td><td><span class="status status-done">Done</span></td><td>T-18</td><td>review-wave-1</td></tr>
+<tr><td>T-18c</td><td>S5</td><td>Fix review defects</td><td>DEV-01</td><td><span class="status status-done">Done</span></td><td>T-18a, T-18b</td><td>-</td></tr>
+<tr><td>T-19</td><td>S6</td><td>Unit tests Gateway</td><td>QA-01</td><td><span class="status status-done">Done</span></td><td>T-18c</td><td>qa-wave-1</td></tr>
+<tr><td>T-19b</td><td>S6</td><td>Unit tests Account</td><td>QA-02</td><td><span class="status status-done">Done</span></td><td>T-18c</td><td>qa-wave-1</td></tr>
+<tr><td>T-20</td><td>S6</td><td>Integration tests</td><td>QA-03</td><td><span class="status status-done">Done</span></td><td>T-19, T-19b</td><td>qa-wave-2</td></tr>
+<tr><td>T-20b</td><td>S6</td><td>Resiliency + trace tests</td><td>QA-04</td><td><span class="status status-done">Done</span></td><td>T-19, T-19b</td><td>qa-wave-2</td></tr>
+<tr><td>T-21</td><td>S6</td><td>Coverage reports</td><td>QA-01</td><td><span class="status status-done">Done</span></td><td>T-20, T-20b</td><td>-</td></tr>
+<tr><td>T-22</td><td>S7</td><td>AI-SDLC log + commits</td><td>PM-01</td><td><span class="status status-done">Done</span></td><td>T-21</td><td>-</td></tr>
+</tbody></table></div>
+<div class="section card"><h2>Agent roster</h2><div class="agent-grid">
+<div class="agent-chip done">ORCH-01<br><small>Done</small></div>
+<div class="agent-chip done">PM-01<br><small>Done</small></div>
+<div class="agent-chip done">BA-01<br><small>Done</small></div>
+<div class="agent-chip done">ARCH-01<br><small>Done</small></div>
+<div class="agent-chip done">DEV-01<br><small>Done</small></div>
+<div class="agent-chip done">DEV-02<br><small>Done</small></div>
+<div class="agent-chip done">DEV-03<br><small>Done</small></div>
+<div class="agent-chip done">REV-01<br><small>Done</small></div>
+<div class="agent-chip done">REV-02<br><small>Done</small></div>
+<div class="agent-chip done">QA-01<br><small>Done</small></div>
+<div class="agent-chip done">QA-02<br><small>Done</small></div>
+<div class="agent-chip done">QA-03<br><small>Done</small></div>
+<div class="agent-chip done">QA-04<br><small>Done</small></div>
+</div></div>
+<footer>
+<p>Generated from task-tracker.json. Run scripts/generate-dashboard.ps1 after tracker updates.</p>
+</footer>
+</body></html>

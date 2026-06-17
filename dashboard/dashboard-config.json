@@ -1,0 +1,7 @@
+{
+  "refresh_interval_seconds": 5,
+  "auto_refresh_enabled": true,
+  "dashboard_owner": "ORCH-01",
+  "project_name": "Event Ledger",
+  "sprint_status": "In Progress"
+}
