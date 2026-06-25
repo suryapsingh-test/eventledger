@@ -1,6 +1,7 @@
 using EventGateway.Clients;
 using EventGateway.Data;
 using EventGateway.Endpoints;
+using EventGateway.Extensions;
 using EventGateway.Logging;
 using EventGateway.Middleware;
 using EventGateway.Metrics;
@@ -59,6 +60,7 @@ builder.Services.AddScoped<IAccountServiceClient, AccountServiceClient>();
 builder.Services.AddScoped<EventService>();
 
 builder.Services.AddProblemDetails();
+builder.Services.AddEventGatewaySwagger();
 
 builder.WebHost.ConfigureKestrel(options =>
     options.Limits.MaxRequestBodySize = 64 * 1024);
@@ -73,6 +75,7 @@ using (var scope = app.Services.CreateScope())
 
 app.UseGlobalExceptionHandling();
 app.UseSerilogRequestLogging();
+app.UseEventGatewaySwagger();
 
 app.MapEventEndpoints();
 app.MapHealthEndpoints();

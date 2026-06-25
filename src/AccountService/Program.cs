@@ -1,5 +1,6 @@
 using AccountService.Data;
 using AccountService.Endpoints;
+using AccountService.Extensions;
 using AccountService.Logging;
 using AccountService.Middleware;
 using AccountService.Services;
@@ -37,6 +38,7 @@ builder.Services.AddScoped<ITransactionService, TransactionService>();
 builder.Services.AddScoped<IAccountQueryService, AccountQueryService>();
 
 builder.Services.AddProblemDetails();
+builder.Services.AddAccountServiceSwagger();
 
 var app = builder.Build();
 
@@ -48,6 +50,7 @@ using (var scope = app.Services.CreateScope())
 
 app.UseGlobalExceptionHandling();
 app.UseSerilogRequestLogging();
+app.UseAccountServiceSwagger();
 
 app.MapAccountEndpoints();
 app.MapHealthEndpoints();

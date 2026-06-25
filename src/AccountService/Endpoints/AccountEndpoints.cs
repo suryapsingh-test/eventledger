@@ -12,9 +12,29 @@ public static class AccountEndpoints
     {
         var group = app.MapGroup("/accounts");
 
-        group.MapPost("/{accountId}/transactions", ApplyTransactionAsync);
-        group.MapGet("/{accountId}/balance", GetBalanceAsync);
-        group.MapGet("/{accountId}", GetAccountDetailAsync);
+        group.MapPost("/{accountId}/transactions", ApplyTransactionAsync)
+            .WithName("ApplyTransaction")
+            .WithTags("Accounts")
+            .WithSummary("Apply a transaction to an account")
+            .WithDescription("Credits or debits an account. Duplicate eventId returns 200 with Idempotency-Replay: true.")
+            .Accepts<TransactionRequest>("application/json")
+            .Produces<TransactionResponse>(StatusCodes.Status201Created)
+            .Produces<TransactionResponse>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        group.MapGet("/{accountId}/balance", GetBalanceAsync)
+            .WithName("GetBalance")
+            .WithTags("Accounts")
+            .WithSummary("Get account balance")
+            .Produces<BalanceResponse>()
+            .ProducesProblem(StatusCodes.Status404NotFound);
+
+        group.MapGet("/{accountId}", GetAccountDetailAsync)
+            .WithName("GetAccountDetail")
+            .WithTags("Accounts")
+            .WithSummary("Get account details")
+            .Produces<AccountDetailResponse>()
+            .ProducesProblem(StatusCodes.Status404NotFound);
 
         return app;
     }

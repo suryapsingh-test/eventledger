@@ -18,9 +18,31 @@ public static class EventEndpoints
 
     public static IEndpointRouteBuilder MapEventEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapPost("/events", SubmitEventAsync);
-        app.MapGet("/events/{eventId}", GetEventByIdAsync);
-        app.MapGet("/events", GetEventsByAccountAsync);
+        app.MapPost("/events", SubmitEventAsync)
+            .WithName("SubmitEvent")
+            .WithTags("Events")
+            .WithSummary("Submit a transaction event")
+            .WithDescription("Creates a new event or returns the existing one when the same eventId is submitted again (Idempotency-Replay: true).")
+            .Accepts<EventRequest>("application/json")
+            .Produces<EventResponse>(StatusCodes.Status201Created)
+            .Produces<EventResponse>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
+
+        app.MapGet("/events/{eventId}", GetEventByIdAsync)
+            .WithName("GetEventById")
+            .WithTags("Events")
+            .WithSummary("Get an event by ID")
+            .Produces<EventResponse>()
+            .ProducesProblem(StatusCodes.Status404NotFound);
+
+        app.MapGet("/events", GetEventsByAccountAsync)
+            .WithName("GetEventsByAccount")
+            .WithTags("Events")
+            .WithSummary("List events for an account")
+            .Produces<IReadOnlyList<EventResponse>>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
         return app;
     }
 

@@ -24,7 +24,12 @@ public static class HealthEndpoints
             return isHealthy
                 ? Results.Ok(response)
                 : Results.Json(response, statusCode: StatusCodes.Status503ServiceUnavailable);
-        });
+        })
+        .WithName("GetHealth")
+        .WithTags("Health")
+        .WithSummary("Service health check")
+        .Produces<HealthResponse>()
+        .Produces<HealthResponse>(StatusCodes.Status503ServiceUnavailable);
 
         return app;
     }

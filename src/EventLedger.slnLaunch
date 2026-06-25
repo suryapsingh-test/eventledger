@@ -1,0 +1,15 @@
+[
+  {
+    "Name": "New Profile",
+    "Projects": [
+      {
+        "Path": "EventGateway\\EventGateway.csproj",
+        "Action": "Start"
+      },
+      {
+        "Path": "AccountService\\AccountService.csproj",
+        "Action": "Start"
+      }
+    ]
+  }
+]
