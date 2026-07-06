@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Event Ledger — Interview Demo Script</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --border: #e2e8f0;
+      --text: #0f172a;
+      --muted: #64748b;
+      --accent: #2563eb;
+      --accent-soft: #dbeafe;
+      --success: #16a34a;
+      --success-soft: #dcfce7;
+      --warning: #d97706;
+      --warning-soft: #fef3c7;
+      --danger: #dc2626;
+      --danger-soft: #fee2e2;
+      --say-bg: #eff6ff;
+      --say-border: #93c5fd;
+      --radius: 10px;
+      --shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+      padding: 1.5rem;
+      max-width: 920px;
+      margin: 0 auto;
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    header {
+      margin-bottom: 1.5rem;
+      padding-bottom: 1.25rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    header h1 { font-size: 1.75rem; font-weight: 700; }
+    header .subtitle { color: var(--muted); margin-top: 0.35rem; }
+
+    .badges { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; }
+
+    .badge {
+      display: inline-block;
+      padding: 0.2rem 0.65rem;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      background: var(--accent-soft);
+      color: var(--accent);
+    }
+
+    .badge-time { background: var(--warning-soft); color: var(--warning); }
+
+    nav.toc {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem 1.25rem;
+      margin-bottom: 1.5rem;
+      box-shadow: var(--shadow);
+    }
+
+    nav.toc h2 {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 0.6rem;
+    }
+
+    nav.toc ol { padding-left: 1.25rem; font-size: 0.9rem; }
+    nav.toc li { margin: 0.25rem 0; }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+      margin-bottom: 1.25rem;
+      box-shadow: var(--shadow);
+    }
+
+    .card h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .section-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      background: #f1f5f9;
+      padding: 0.15rem 0.5rem;
+      border-radius: 6px;
+    }
+
+    .step {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem 1.1rem;
+      margin-bottom: 0.85rem;
+      position: relative;
+    }
+
+    .step:last-child { margin-bottom: 0; }
+
+    .step-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.65rem;
+      margin-bottom: 0.6rem;
+    }
+
+    .step input[type="checkbox"] {
+      margin-top: 0.35rem;
+      width: 1.1rem;
+      height: 1.1rem;
+      accent-color: var(--accent);
+      flex-shrink: 0;
+    }
+
+    .step-title { font-weight: 600; font-size: 0.95rem; }
+    .step-action { font-size: 0.85rem; color: var(--muted); margin-top: 0.15rem; }
+
+    .say {
+      background: var(--say-bg);
+      border-left: 3px solid var(--say-border);
+      padding: 0.65rem 0.85rem;
+      border-radius: 0 8px 8px 0;
+      font-size: 0.9rem;
+      margin: 0.6rem 0;
+      font-style: italic;
+      color: #1e3a5f;
+    }
+
+    .say::before {
+      content: "Say: ";
+      font-style: normal;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .expect {
+      display: inline-flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      margin-top: 0.4rem;
+    }
+
+    .pill {
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.15rem 0.55rem;
+      border-radius: 6px;
+    }
+
+    .pill-201 { background: var(--success-soft); color: var(--success); }
+    .pill-200 { background: var(--accent-soft); color: var(--accent); }
+    .pill-400 { background: var(--danger-soft); color: var(--danger); }
+    .pill-info { background: #f1f5f9; color: var(--muted); }
+    .pill-highlight { background: var(--warning-soft); color: var(--warning); }
+
+    pre, code {
+      font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+      font-size: 0.82rem;
+    }
+
+    pre {
+      background: #1e293b;
+      color: #e2e8f0;
+      padding: 0.85rem 1rem;
+      border-radius: 8px;
+      overflow-x: auto;
+      margin: 0.6rem 0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 0.55rem 0.65rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th {
+      background: #f1f5f9;
+      font-weight: 600;
+      color: var(--muted);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .highlight-step {
+      border-color: var(--warning);
+      box-shadow: 0 0 0 1px var(--warning-soft);
+    }
+
+    .progress-bar-wrap { margin: 1rem 0 0.5rem; }
+    .progress-label { font-size: 0.8rem; color: var(--muted); margin-bottom: 0.35rem; }
+    .progress-bar {
+      height: 8px;
+      background: var(--border);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), #3b82f6);
+      border-radius: 999px;
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    footer {
+      margin-top: 2rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    @media print {
+      body { padding: 0.5rem; max-width: none; }
+      .step input[type="checkbox"] { display: none; }
+      nav.toc { break-after: avoid; }
+      .card { break-inside: avoid; box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Event Ledger — Interview Demo Script</h1>
+  <p class="subtitle">Live walkthrough · Gateway <code>:8080</code> · Account Service <code>:8081</code> · Run order A → B → C</p>
+  <div class="badges">
+    <span class="badge badge-time">~12 min total</span>
+    <span class="badge">demo/EventLedger.http</span>
+    <span class="badge">Postman collection</span>
+  </div>
+  <div class="progress-bar-wrap">
+    <div class="progress-label"><span id="progress-text">0 of 15 steps complete</span></div>
+    <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+  </div>
+</header>
+
+<nav class="toc card">
+  <h2>Contents</h2>
+  <ol>
+    <li><a href="#setup">Setup (before you start)</a></li>
+    <li><a href="#opening">Opening (30 sec)</a></li>
+    <li><a href="#section-a">A — Happy path</a></li>
+    <li><a href="#section-b">B — Out-of-order arrival</a></li>
+    <li><a href="#section-c">C — Validation errors</a></li>
+    <li><a href="#section-d">D — Swagger (optional)</a></li>
+    <li><a href="#section-e">E — Observability (optional)</a></li>
+    <li><a href="#closing">Closing</a></li>
+    <li><a href="#reference">Quick reference table</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+    <li><a href="#faq">Follow-up Q&amp;A</a></li>
+  </ol>
+</nav>
+
+<section id="setup" class="card">
+  <h2><span class="section-label">Prep</span> Setup — 5 minutes before</h2>
+  <pre>cd &lt;path-to-eventledger&gt;
+docker compose down -v && docker compose up --build</pre>
+  <p style="font-size:0.9rem;color:var(--muted);margin:0.5rem 0">Alternative (local): run Account on <code>8081</code>, Gateway on <code>8080</code> via <code>dotnet run</code>.</p>
+  <pre>dotnet test src/EventLedger.sln</pre>
+  <p style="font-size:0.9rem;margin-top:0.5rem">Open <a href="EventLedger.http">EventLedger.http</a> in VS Code (REST Client) or import <a href="EventLedger.postman_collection.json">EventLedger.postman_collection.json</a> into Postman.</p>
+</section>
+
+<section id="opening" class="card">
+  <h2>Opening — 30 seconds</h2>
+  <div class="say">I'm going to demo Event Ledger — a two-service .NET system that ingests financial transaction events from upstream systems that may send duplicates or deliver events out of order. The Event Gateway is the public API — validation, idempotency, audit log. The Account Service owns balances and transactions. Each has its own SQLite database. I'll walk through the happy path, idempotency, out-of-order handling, validation errors, and show the resulting balances.</div>
+</section>
+
+<section id="section-a" class="card">
+  <h2><span class="section-label">A</span> Happy path — ~3 min</h2>
+
+  <div class="step" data-step>
+    <div class="step-header">
+      <input type="checkbox" aria-label="Mark step 0a complete" />
+      <div>
+        <div class="step-title">0a — Gateway health</div>
+        <div class="step-action"><code>GET http://localhost:8080/health</code></div>
+      </div>
+    </div>
+    <div class="say">Both services expose health checks that verify database connectivity. Gateway returns 200 when SQLite is reachable.</div>
+    <div class="expect"><span class="pill pill-200">200 OK</span><span class="pill pill-info">status: Healthy</span></div>
+  </div>
+
+  <div class="step" data-step>
+    <div class="step-header">
+      <input type="checkbox" aria-label="Mark step 0b complete" />
+      <div>
+        <div class="step-title">0b — Account Service health</div>
+        <div class="step-action"><code>GET http://localhost:8081/health</code></div>
+      </div>
+    </div>
+    <div class="say">Account Service is on 8081 for demo and debugging. In production, only the Gateway would be public — clients never post events directly to Account.</div>
+    <div class="expect"><span class="pill pill-200">200 OK</span></div>
+  </div>
+
+  <div class="step" data-step>
+    <div class="step-header">
+      <input type="checkbox" aria-label="Mark step 1 complete" />
+      <div>
+        <div class="step-title">1 — CREDIT $150 (creates account)</div>
+        <div class="step-action"><code>POST /events</code> · eventId <code>evt-credit-1001</code></div>
+      </div>
+    </div>
+    <div class="say">I'm submitting a credit of one hundred fifty dollars. No separate create-account call — the account is auto-created on the first transaction. The Gateway validates, checks idempotency, calls Account Service, then persists the audit record only after Account succeeds.</div>
+    <div class="expect"><span class="pill pill-201">201 Created</span><span class="pill pill-info">status: Applied</span></div>
+  </div>
+
+  <div class="step" data-step>
+    <div class="step-header">
+      <input type="checkbox" aria-label="Mark step 2 complete" />
+      <div>
+        <div class="step-title">2 — DEBIT $40</div>
+        <div class="step-action"><code>POST /events</code> · type DEBIT · amount 40.00</div>
+      </div>
+    </div>
+    <div class="say">Now a debit of forty dollars. Amount is always positive in the API — the type field determines credit versus debit.</div>
+    <div class="expect"><span class="pill pill-201">201 Created</span></div>
+  </div>
+
+  <div class="step highlight-step" data-step>
+    <div class="step-header">
+      <input type="checkbox" aria-label="Mark step 3 complete" />
+      <div>
+        <div class="step-title">3 — Idempotency replay ⭐</div>
+        <div class="step-action">Resubmit the exact same CREDIT from step 1</div>
+      </div>
+    </div>
+    <div class="say">Upstream systems retry — so I'll resubmit the same eventId. Watch the response.</div>
+    <div class="expect">
+      <span class="pill pill-200">200 OK</span>
+      <span class="pill pill-highlight">Idempotency-Replay: true</span>
+      <span class="pill pill-info">same body as step 1</span>
+    </div>
+    <div class="say">Same event returned, no duplicate transaction, balance unchanged. The Gateway short-circuited — Account Service wasn't called again.</div>
+  </div>
+
+  <div class="step" data-step>
+    <div class="step-header">
+      <input type="checkbox" aria-label="Mark step 4 complete" />
+      <div>
+        <div class="step-title">4 — Get event by ID</div>
+        <div class="step-action"><code>GET /events/evt-credit-1001</code></div>
+      </div>
+    </div>
+    <div class="say">Reads hit the Gateway's local audit database only — no Account Service call.</div>
+    <div class="expect"><span class="pill pill-200">200 OK</span></div>
+  </div>
+
+  <div class="step" data-step>
+    <div class="step-header">
+      <input type="checkbox" aria-label="Mark step 5 complete" />
+      <div>
+        <div class="step-title">5 — List events for account</div>
+        <div class="step-action"><code>GET /events?account=acct-demo-001</code></div>
+      </div>
+    </div>
+    <div class="say">Events are listed in chronological order by eventTimestamp, not arrival order.</div>
+    <div class="expect"><span class="pill pill-200">200 OK</span><span class="pill pill-info">2 events: credit 16:00, debit 16:05</span></div>
+  </div>
+
+  <div class="step highlight-step" data-step>
+    <div class="step-header">
+      <input type="checkbox" aria-label="Mark step 6 complete" />
+      <div>
+        <div class="step-title">6 — Balance ⭐</div>
+        <div class="step-action"><code>GET /accounts/acct-demo-001/balance</code></div>
+      </div>
+    </div>
+    <div class="say">Balance lives in Account Service — sum of credits minus debits.</div>
+    <div class="expect"><span class="pill pill-200">200 OK</span><span class="pill pill-highlight">balance: 110.00</span></div>
+    <div class="say">One hundred ten — exactly what we'd expect.</div>
+  </div>
+
+  <div class="step" data-step>
+    <div class="step-header">
+      <input type="checkbox" aria-label="Mark step 7 complete" />
+      <div>
+        <div class="step-title">7 — Account detail</div>
+        <div class="step-action"><code>GET /accounts/acct-demo-001</code></div>
+      </div>
+    </div>
+    <div class="say">Account detail includes metadata and recent transaction history.</div>
+    <div class="expect"><span class="pill pill-200">200 OK</span></div>
+  </div>
+</section>
+
+<section id="section-b" class="card">
+  <h2><span class="section-label">B</span> Out-of-order arrival — ~2 min</h2>
+  <div class="say">Next I'll prove out-of-order tolerance. I'll submit three events in reverse chronological order — latest timestamp first, earliest last.</div>
+
+  <div class="step" data-step>
+    <div class="step-header">
+      <input type="checkbox" aria-label="Mark step 8a complete" />
+      <div>
+        <div class="step-title">8a — T3: CREDIT +$50 @ 18:00 (submit first)</div>
+        <div class="step-action"><code>POST /events</code> · evt-ooo-t3 · acct-demo-out-of-order</div>
+      </div>
+    </div>
+    <div class="expect"><span class="pill pill-201">201 Created</span></div>
+  </div>
+
+  <div class="step" data-step>
+    <div class="step-header">
+      <input type="checkbox" aria-label="Mark step 8b complete" />
+      <div>
+        <div class="step-title">8b — T2: DEBIT $30 @ 17:00</div>
+        <div class="step-action"><code>POST /events</code> · evt-ooo-t2</div>
+      </div>
+    </div>
+    <div class="expect"><span class="pill pill-201">201 Created</span></div>
+  </div>
+
+  <div class="step" data-step>
+    <div class="step-header">
+      <input type="checkbox" aria-label="Mark step 8c complete" />
+      <div>
+        <div class="step-title">8c — T1: CREDIT +$100 @ 16:00 (submit last)</div>
+        <div class="step-action"><code>POST /events</code> · evt-ooo-t1</div>
+      </div>
+    </div>
+    <div class="say">I submitted T3, then T2, then T1 — reverse order. Balance math is commutative: credits minus debits, regardless of arrival order.</div>
+    <div class="expect"><span class="pill pill-201">201 Created</span></div>
+  </div>
+
+  <div class="step highlight-step" data-step>
+    <div class="step-header">
+      <input type="checkbox" aria-label="Mark step 8d complete" />
+      <div>
+        <div class="step-title">8d — Balance ⭐</div>
+        <div class="step-action"><code>GET /accounts/acct-demo-out-of-order/balance</code></div>
+      </div>
+    </div>
+    <div class="expect"><span class="pill pill-200">200 OK</span><span class="pill pill-highlight">balance: 120.00</span><span class="pill pill-info">100 − 30 + 50</span></div>
+    <div class="say">One hundred twenty — correct even though events arrived out of order.</div>
+  </div>
+
+  <div class="step" data-step>
+    <div class="step-header">
+      <input type="checkbox" aria-label="Mark step 8e complete" />
+      <div>
+        <div class="step-title">8e — Event list (ordering)</div>
+        <div class="step-action"><code>GET /events?account=acct-demo-out-of-order</code></div>
+      </div>
+    </div>
+    <div class="say">The listing is sorted by eventTimestamp, not submission order. That's the audit view clients expect.</div>
+    <div class="expect"><span class="pill pill-200">200 OK</span><span class="pill pill-info">T1 → T2 → T3 by timestamp</span></div>
+  </div>
+</section>
+
+<section id="section-c" class="card">
+  <h2><span class="section-label">C</span> Validation errors — ~1 min</h2>
+  <div class="say">Finally, validation — fail fast with no side effects.</div>
+
+  <div class="step" data-step>
+    <div class="step-header">
+      <input type="checkbox" aria-label="Mark step 9 complete" />
+      <div>
+        <div class="step-title">9 — Negative amount</div>
+        <div class="step-action"><code>POST /events</code> · amount: -5.00</div>
+      </div>
+    </div>
+    <div class="say">Negative amount rejected. Nothing persisted, Account Service never called. Point out the <strong>traceId</strong> field in the ProblemDetails JSON — clients can correlate errors with logs.</div>
+    <div class="expect"><span class="pill pill-400">400 Bad Request</span><span class="pill pill-info">ProblemDetails</span><span class="pill pill-highlight">traceId in body</span></div>
+  </div>
+
+  <div class="step" data-step>
+    <div class="step-header">
+      <input type="checkbox" aria-label="Mark step 10 complete" />
+      <div>
+        <div class="step-title">10 — Unknown event type</div>
+        <div class="step-action"><code>POST /events</code> · type: TRANSFER</div>
+      </div>
+    </div>
+    <div class="say">Only CREDIT and DEBIT are accepted. Clear error, no partial state.</div>
+    <div class="expect"><span class="pill pill-400">400 Bad Request</span><span class="pill pill-info">type must be CREDIT or DEBIT</span></div>
+  </div>
+</section>
+
+<section id="section-d" class="card">
+  <h2><span class="section-label">D</span> Swagger — optional (~30 sec)</h2>
+  <div class="step-action"><code>GET http://localhost:8080/swagger/index.html</code></div>
+  <div class="say">Swagger is enabled in Development — useful for exploring the API surface.</div>
+</section>
+
+<section id="section-e" class="card">
+  <h2><span class="section-label">E</span> Observability — ~2 min (optional)</h2>
+  <p style="font-size:0.9rem;color:var(--muted);margin-bottom:0.75rem">No Jaeger/Grafana in this project — observability is shown via <strong>structured logs</strong>, <strong>traceId in errors</strong>, and <strong>OpenTelemetry console export</strong>.</p>
+
+  <div class="step" data-step>
+    <div class="step-header">
+      <input type="checkbox" aria-label="Mark observability prep complete" />
+      <div>
+        <div class="step-title">E0 — Open log tail (prep)</div>
+        <div class="step-action">Second terminal</div>
+      </div>
+    </div>
+    <pre>docker compose logs -f event-gateway account-service</pre>
+    <div class="say">I'll tail structured JSON logs from both services. Every request gets a trace ID that propagates Gateway to Account via the W3C traceparent header.</div>
+  </div>
+
+  <div class="step highlight-step" data-step>
+    <div class="step-header">
+      <input type="checkbox" aria-label="Mark step E1 complete" />
+      <div>
+        <div class="step-title">E1 — Distributed trace in logs ⭐</div>
+        <div class="step-action"><code>POST /events</code> · eventId <code>evt-obs-trace-001</code></div>
+      </div>
+    </div>
+    <div class="say">Submitting a new event — watch both log streams. The same TraceId appears on Gateway and Account Service lines. Gateway logs Event applied; Account logs the transaction. OpenTelemetry also emits span activity to the console.</div>
+    <div class="expect">
+      <span class="pill pill-201">201 Created</span>
+      <span class="pill pill-info">Gateway log: TraceId + ServiceName EventGateway</span>
+      <span class="pill pill-info">Account log: same TraceId</span>
+    </div>
+    <p style="font-size:0.85rem;color:var(--muted);margin-top:0.5rem">Example log fields: <code>TraceId</code>, <code>ServiceName</code>, <code>EventId</code>, <code>AccountId</code>. Custom metric <code>eventledger.events.processed</code> increments on success.</p>
+  </div>
+
+  <div class="step highlight-step" data-step>
+    <div class="step-header">
+      <input type="checkbox" aria-label="Mark step E2 complete" />
+      <div>
+        <div class="step-title">E2 — traceId in error response ⭐</div>
+        <div class="step-action"><code>POST /events</code> · amount -1.00 (or re-use step 9)</div>
+      </div>
+    </div>
+    <div class="say">Validation errors return RFC 7807 ProblemDetails with a traceId extension. Support teams can take this ID and find the matching log line without guessing.</div>
+    <div class="expect">
+      <span class="pill pill-400">400 Bad Request</span>
+      <span class="pill pill-highlight">"traceId": "…" in JSON body</span>
+    </div>
+  </div>
+
+  <div class="step" data-step>
+    <div class="step-header">
+      <input type="checkbox" aria-label="Mark step E3 complete" />
+      <div>
+        <div class="step-title">E3 — Automated proof (optional)</div>
+        <div class="step-action">Integration tests</div>
+      </div>
+    </div>
+    <pre>dotnet test tests/EventLedger.IntegrationTests --filter TracePropagation</pre>
+    <div class="say">If they want proof beyond the live demo, these tests assert W3C traceparent propagation and that downstream trace IDs match the Gateway on failure.</div>
+  </div>
+
+  <table style="margin-top:1rem">
+    <thead><tr><th>Signal</th><th>Where to see it</th></tr></thead>
+    <tbody>
+      <tr><td>Structured logs</td><td>Serilog JSON — <code>TraceId</code>, <code>ServiceName</code>, event properties</td></tr>
+      <tr><td>Distributed tracing</td><td>Same <code>TraceId</code> in Gateway + Account logs; W3C <code>traceparent</code> header</td></tr>
+      <tr><td>Metrics</td><td><code>eventledger.events.processed</code>, <code>.failed</code>, <code>.inbound.throttled</code> — OTel console exporter</td></tr>
+      <tr><td>Audit correlation</td><td><code>TraceId</code> stored on Gateway <code>EventRecord</code> (internal DB)</td></tr>
+      <tr><td>Production evolution</td><td>Swap console exporter for OTLP → Jaeger / Datadog / Azure Monitor</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="closing" class="card">
+  <h2>Closing — 30 seconds</h2>
+  <div class="say">To summarize: dual-layer idempotency on eventId; persist after downstream success so we don't store orphan events; out-of-order tolerance via commutative balance and chronological listing; graceful degradation — GET /events works from Gateway local DB even if Account is down; layered resiliency — inbound rate limiting and bulkhead, outbound Polly circuit breaker with retry and timeout; OpenTelemetry trace propagation and structured JSON logs. The repo has automated tests covering these scenarios. Happy to go deeper on any design decision.</div>
+</section>
+
+<section id="reference" class="card">
+  <h2>Quick reference</h2>
+  <table>
+    <thead>
+      <tr><th>Step</th><th>Request</th><th>Expected</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>0a</td><td>GET Gateway /health</td><td>200 Healthy</td></tr>
+      <tr><td>0b</td><td>GET Account /health</td><td>200 Healthy</td></tr>
+      <tr><td>1</td><td>POST credit +150</td><td><strong>201</strong></td></tr>
+      <tr><td>2</td><td>POST debit 40</td><td><strong>201</strong></td></tr>
+      <tr><td>3</td><td>POST same credit</td><td><strong>200</strong> + Idempotency-Replay</td></tr>
+      <tr><td>4</td><td>GET event by id</td><td>200</td></tr>
+      <tr><td>5</td><td>GET events list</td><td>200 · 2 events chronological</td></tr>
+      <tr><td>6</td><td>GET balance</td><td><strong>110.00</strong></td></tr>
+      <tr><td>7</td><td>GET account detail</td><td>200</td></tr>
+      <tr><td>8a–c</td><td>POST out-of-order T3→T2→T1</td><td>201 each</td></tr>
+      <tr><td>8d</td><td>GET balance</td><td><strong>120.00</strong></td></tr>
+      <tr><td>8e</td><td>GET events list</td><td>T1, T2, T3 by timestamp</td></tr>
+      <tr><td>9</td><td>POST amount -5</td><td><strong>400</strong></td></tr>
+      <tr><td>10</td><td>POST type TRANSFER</td><td><strong>400</strong></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="troubleshooting" class="card">
+  <h2>Troubleshooting</h2>
+  <table>
+    <thead>
+      <tr><th>Problem</th><th>Fix</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Steps 1–2 return 200 instead of 201</td><td>Previous run data — <code>docker compose down -v</code> and restart</td></tr>
+      <tr><td>Connection refused on 8081</td><td>Run <code>docker compose up --build</code> or start Account locally</td></tr>
+      <tr><td>Balance wrong</td><td>Clean state; run steps in order; don't change event IDs</td></tr>
+      <tr><td>Swagger 404</td><td>Use docker-compose (Development) or <code>dotnet run</code> locally</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="faq" class="card">
+  <h2>Follow-up Q&amp;A</h2>
+  <table>
+    <thead>
+      <tr><th>Question</th><th>Answer</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Why two services?</td><td>Gateway = ingestion + audit boundary; Account = financial source of truth</td></tr>
+      <tr><td>Why persist after Account succeeds?</td><td>Avoid orphan events; client retries safely via idempotency</td></tr>
+      <tr><td>Why allow negative balance?</td><td>Simpler than holds; commutative sum avoids ordering bugs</td></tr>
+      <tr><td>Retry on POST?</td><td>Yes — 3 retries with jitter; safe because Account idempotency keys on eventId</td></tr>
+      <tr><td>What if Account is down?</td><td>POST → 503, event not stored; GET /events still serves local data</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<footer>
+  Event Ledger · <a href="EventLedger.http">EventLedger.http</a> · <a href="../README.md">README</a> · <a href="../dashboard/project-dashboard.html">Project dashboard</a>
+  · Checkboxes save in this browser session only
+</footer>
+
+<script>
+  (function () {
+    const STORAGE_KEY = "eventledger-demo-progress";
+    const steps = document.querySelectorAll(".step[data-step]");
+    const boxes = document.querySelectorAll('.step input[type="checkbox"]');
+    const fill = document.getElementById("progress-fill");
+    const text = document.getElementById("progress-text");
+    const total = boxes.length;
+
+    function load() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+        boxes.forEach((box, i) => { box.checked = !!saved[i]; });
+      } catch { /* ignore */ }
+      updateProgress();
+    }
+
+    function save() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([...boxes].map(b => b.checked)));
+      updateProgress();
+    }
+
+    function updateProgress() {
+      const done = [...boxes].filter(b => b.checked).length;
+      const pct = total ? Math.round((done / total) * 100) : 0;
+      fill.style.width = pct + "%";
+      text.textContent = done + " of " + total + " steps complete";
+    }
+
+    boxes.forEach(box => box.addEventListener("change", save));
+    load();
+  })();
+</script>
+
+</body>
+</html>

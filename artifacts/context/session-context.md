@@ -10,7 +10,7 @@
 |-------|-------|
 | **Sprint** | **Complete** |
 | **Tasks** | 27/27 Done |
-| **Tests** | 40/40 passing |
+| **Tests** | 46/46 passing |
 | **Status** | No pending approvals |
 
 ---
@@ -22,7 +22,7 @@ All stages S1–S7 finished. Developer approved every gate.
 | Deliverable | Path |
 |-------------|------|
 | Application | `src/EventGateway/`, `src/AccountService/` |
-| Tests | `tests/` — 40 tests |
+| Tests | `tests/` — 46 tests |
 | Coverage | `artifacts/07-qa/coverage-summary.md` |
 | Closeout | `artifacts/01-sprint-plan/sprint-closeout.md` |
 | AI-SDLC log | `docs/ai-sdlc.md` |

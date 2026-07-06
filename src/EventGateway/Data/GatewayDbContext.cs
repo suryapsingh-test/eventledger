@@ -14,9 +14,7 @@ public sealed class GatewayDbContext(DbContextOptions<GatewayDbContext> options)
 
         entity.HasIndex(e => new { e.AccountId, e.EventTimestamp, e.EventId });
 
-        entity.Property(e => e.Amount).HasConversion(
-            v => v.ToString("F2"),
-            v => decimal.Parse(v));
+        entity.Property(e => e.Amount).HasPrecision(19, 4);
 
         entity.Property(e => e.EventId).HasMaxLength(128);
         entity.Property(e => e.AccountId).HasMaxLength(64);

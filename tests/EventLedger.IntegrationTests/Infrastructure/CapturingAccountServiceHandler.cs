@@ -53,6 +53,11 @@ public sealed class CapturingAccountServiceHandler : HttpMessageHandler
         }
     }
 
+    /// <summary>When &gt; 0, returns <see cref="TransientFailureStatusCode"/> and decrements until zero.</summary>
+    public int RemainingTransientFailures { get; set; }
+
+    public HttpStatusCode TransientFailureStatusCode { get; set; } = HttpStatusCode.ServiceUnavailable;
+
     public string? LastTraceParent
     {
         get
@@ -79,6 +84,8 @@ public sealed class CapturingAccountServiceHandler : HttpMessageHandler
 
             RequestsInternal.Clear();
         }
+
+        RemainingTransientFailures = 0;
     }
 
     protected override Task<HttpResponseMessage> SendAsync(
@@ -91,6 +98,16 @@ public sealed class CapturingAccountServiceHandler : HttpMessageHandler
         }
 
         var statusCode = ResponseStatusCode;
+
+        lock (_sync)
+        {
+            if (RemainingTransientFailures > 0)
+            {
+                RemainingTransientFailures--;
+                statusCode = TransientFailureStatusCode;
+            }
+        }
+
         var response = new HttpResponseMessage(statusCode);
 
         if (statusCode is HttpStatusCode.OK or HttpStatusCode.Created)

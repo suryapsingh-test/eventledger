@@ -3,7 +3,10 @@ services:
     build:
       context: ./src
       dockerfile: AccountService/Dockerfile
+    ports:
+      - "8081:8081"
     environment:
+      - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8081
       - ConnectionStrings__Default=Data Source=/data/account.db
     volumes:
@@ -24,6 +27,7 @@ services:
     ports:
       - "8080:8080"
     environment:
+      - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
       - AccountService__BaseUrl=http://account-service:8081
       - ConnectionStrings__Default=Data Source=/data/gateway.db

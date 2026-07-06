@@ -35,7 +35,7 @@ public sealed class TransactionService(
 
         if (existing is not null)
         {
-            var replayBalance = await BalanceCalculator.ComputeBalanceAsync(dbContext, existing.AccountId, cancellationToken);
+            var replayBalance = await GetAccountBalanceAsync(existing.AccountId, cancellationToken);
             logger.LogInformation(
                 "Idempotent replay for event {EventId} on account {AccountId}",
                 request.EventId,
@@ -57,7 +57,8 @@ public sealed class TransactionService(
             {
                 AccountId = accountId,
                 CreatedAt = appliedAt,
-                Currency = request.Currency
+                Currency = request.Currency,
+                Balance = 0
             };
             dbContext.Accounts.Add(account);
         }
@@ -74,6 +75,7 @@ public sealed class TransactionService(
         };
 
         dbContext.Transactions.Add(entity);
+        ApplyBalanceDelta(account, request.Type, request.Amount);
 
         try
         {
@@ -88,7 +90,7 @@ public sealed class TransactionService(
                 .AsNoTracking()
                 .FirstAsync(t => t.EventId == request.EventId, cancellationToken);
 
-            var replayBalance = await BalanceCalculator.ComputeBalanceAsync(dbContext, replay.AccountId, cancellationToken);
+            var replayBalance = await GetAccountBalanceAsync(replay.AccountId, cancellationToken);
             logger.LogInformation(
                 "Concurrent idempotent replay for event {EventId}",
                 request.EventId);
@@ -98,8 +100,6 @@ public sealed class TransactionService(
 
         await transaction.CommitAsync(cancellationToken);
 
-        var balanceAfter = await BalanceCalculator.ComputeBalanceAsync(dbContext, accountId, cancellationToken);
-
         logger.LogInformation(
             "Applied {Type} transaction {EventId} for account {AccountId} amount {Amount}",
             request.Type,
@@ -107,7 +107,26 @@ public sealed class TransactionService(
             accountId,
             request.Amount);
 
-        return (ToResponse(entity, balanceAfter), false);
+        return (ToResponse(entity, account.Balance), false);
+    }
+
+    private async Task<decimal> GetAccountBalanceAsync(string accountId, CancellationToken cancellationToken)
+    {
+        var account = await dbContext.Accounts
+            .AsNoTracking()
+            .FirstOrDefaultAsync(entity => entity.AccountId == accountId, cancellationToken);
+
+        return account?.Balance ?? 0;
+    }
+
+    private static void ApplyBalanceDelta(Account account, string type, decimal amount)
+    {
+        account.Balance = type switch
+        {
+            "CREDIT" => account.Balance + amount,
+            "DEBIT" => account.Balance - amount,
+            _ => account.Balance
+        };
     }
 
     private static bool IsUniqueEventIdViolation(DbUpdateException exception)

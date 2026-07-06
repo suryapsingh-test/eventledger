@@ -1,0 +1,419 @@
+{
+  "info": {
+    "name": "EventLedger Demo",
+    "description": "End-to-end demo of Event Ledger.\n\n**Run order:** Execute folders A → B → C top to bottom. Folder D (Swagger) is optional.\n\n**Services**\n- Gateway (public): http://localhost:8080\n- Account Service (debug/demo): http://localhost:8081\n\n**Start**\n```powershell\ndocker compose down -v && docker compose up --build\n```\nOr run both .NET projects locally on 8080/8081.\n\n**Fresh demo:** Reset volumes (`docker compose down -v`) or delete local `gateway.db` / `account.db` before re-running — fixed eventIds return **200** (replay) instead of **201** on repeat.\n\n**Status codes (Gateway POST /events)**\n- 201 Created — first submission of an eventId\n- 200 OK — idempotent replay (`Idempotency-Replay: true`)\n- 400 — validation error\n- 429 — inbound rate/concurrency limit\n- 503 — Account Service down (event not stored)\n\n**Resiliency**\n- Inbound: concurrency bulkhead + per-client write rate limit\n- Outbound: Polly circuit breaker → retry (jitter) → timeout",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "gatewayUrl", "value": "http://localhost:8080" },
+    { "key": "accountUrl", "value": "http://localhost:8081" },
+    { "key": "accountId", "value": "acct-demo-001" },
+    { "key": "creditEventId", "value": "evt-credit-1001" },
+    { "key": "debitEventId", "value": "evt-debit-1002" },
+    { "key": "outOfOrderAcct", "value": "acct-demo-out-of-order" }
+  ],
+  "item": [
+    {
+      "name": "A. Happy path",
+      "item": [
+        {
+          "name": "0a. Health - Gateway",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayUrl}}/health"
+          }
+        },
+        {
+          "name": "0b. Health - Account Service",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{accountUrl}}/health"
+          }
+        },
+        {
+          "name": "1. Submit CREDIT (+150.00)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Created (201) or replayed (200)', function () {",
+                  "  pm.expect([200, 201]).to.include(pm.response.code);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"{{creditEventId}}\",\n  \"accountId\": \"{{accountId}}\",\n  \"type\": \"CREDIT\",\n  \"amount\": 150.00,\n  \"currency\": \"USD\",\n  \"eventTimestamp\": \"2026-06-26T16:00:00Z\",\n  \"metadata\": { \"source\": \"demo\", \"note\": \"opening deposit\" }\n}"
+            },
+            "url": "{{gatewayUrl}}/events"
+          }
+        },
+        {
+          "name": "2. Submit DEBIT (40.00, type=DEBIT)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Created (201) or replayed (200)', function () {",
+                  "  pm.expect([200, 201]).to.include(pm.response.code);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"{{debitEventId}}\",\n  \"accountId\": \"{{accountId}}\",\n  \"type\": \"DEBIT\",\n  \"amount\": 40.00,\n  \"currency\": \"USD\",\n  \"eventTimestamp\": \"2026-06-26T16:05:00Z\"\n}"
+            },
+            "url": "{{gatewayUrl}}/events"
+          }
+        },
+        {
+          "name": "3. Idempotency replay (same CREDIT)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Replay returns 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Idempotency-Replay header is true', function () {",
+                  "  pm.expect(pm.response.headers.get('Idempotency-Replay')).to.eql('true');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"{{creditEventId}}\",\n  \"accountId\": \"{{accountId}}\",\n  \"type\": \"CREDIT\",\n  \"amount\": 150.00,\n  \"currency\": \"USD\",\n  \"eventTimestamp\": \"2026-06-26T16:00:00Z\",\n  \"metadata\": { \"source\": \"demo\", \"note\": \"opening deposit\" }\n}"
+            },
+            "url": "{{gatewayUrl}}/events"
+          }
+        },
+        {
+          "name": "4. Get event by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayUrl}}/events/{{creditEventId}}"
+          }
+        },
+        {
+          "name": "5. List events for account",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gatewayUrl}}/events?account={{accountId}}",
+              "host": ["{{gatewayUrl}}"],
+              "path": ["events"],
+              "query": [{ "key": "account", "value": "{{accountId}}" }]
+            }
+          }
+        },
+        {
+          "name": "6. Get balance (expect 110.00)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Balance is 110.00', function () {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json.balance).to.eql(110);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{accountUrl}}/accounts/{{accountId}}/balance"
+          }
+        },
+        {
+          "name": "7. Get account detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{accountUrl}}/accounts/{{accountId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "B. Out-of-order arrival",
+      "item": [
+        {
+          "name": "8a. T3 CREDIT +50 (latest timestamp first)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Created (201) or replayed (200)', function () {",
+                  "  pm.expect([200, 201]).to.include(pm.response.code);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"evt-ooo-t3\",\n  \"accountId\": \"{{outOfOrderAcct}}\",\n  \"type\": \"CREDIT\",\n  \"amount\": 50.00,\n  \"currency\": \"USD\",\n  \"eventTimestamp\": \"2026-06-26T18:00:00Z\"\n}"
+            },
+            "url": "{{gatewayUrl}}/events"
+          }
+        },
+        {
+          "name": "8b. T2 DEBIT 30 (type=DEBIT)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Created (201) or replayed (200)', function () {",
+                  "  pm.expect([200, 201]).to.include(pm.response.code);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"evt-ooo-t2\",\n  \"accountId\": \"{{outOfOrderAcct}}\",\n  \"type\": \"DEBIT\",\n  \"amount\": 30.00,\n  \"currency\": \"USD\",\n  \"eventTimestamp\": \"2026-06-26T17:00:00Z\"\n}"
+            },
+            "url": "{{gatewayUrl}}/events"
+          }
+        },
+        {
+          "name": "8c. T1 CREDIT +100 (earliest last)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Created (201) or replayed (200)', function () {",
+                  "  pm.expect([200, 201]).to.include(pm.response.code);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"evt-ooo-t1\",\n  \"accountId\": \"{{outOfOrderAcct}}\",\n  \"type\": \"CREDIT\",\n  \"amount\": 100.00,\n  \"currency\": \"USD\",\n  \"eventTimestamp\": \"2026-06-26T16:00:00Z\"\n}"
+            },
+            "url": "{{gatewayUrl}}/events"
+          }
+        },
+        {
+          "name": "8d. Balance (expect 120.00)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Balance is 120.00', function () {",
+                  "  pm.expect(pm.response.json().balance).to.eql(120);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{accountUrl}}/accounts/{{outOfOrderAcct}}/balance"
+          }
+        },
+        {
+          "name": "8e. List events (sorted by eventTimestamp)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gatewayUrl}}/events?account={{outOfOrderAcct}}",
+              "host": ["{{gatewayUrl}}"],
+              "path": ["events"],
+              "query": [{ "key": "account", "value": "{{outOfOrderAcct}}" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "C. Error scenarios",
+      "item": [
+        {
+          "name": "9. Validation — negative amount (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Returns 400', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test('traceId present in ProblemDetails', function () {",
+                  "  pm.expect(pm.response.json().traceId).to.be.a('string').and.not.empty;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"evt-bad-9001\",\n  \"accountId\": \"{{accountId}}\",\n  \"type\": \"CREDIT\",\n  \"amount\": -5.00,\n  \"currency\": \"USD\",\n  \"eventTimestamp\": \"2026-06-26T16:10:00Z\"\n}"
+            },
+            "url": "{{gatewayUrl}}/events"
+          }
+        },
+        {
+          "name": "10. Validation — unknown type (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Returns 400', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"evt-bad-9002\",\n  \"accountId\": \"{{accountId}}\",\n  \"type\": \"TRANSFER\",\n  \"amount\": 10.00,\n  \"currency\": \"USD\",\n  \"eventTimestamp\": \"2026-06-26T16:11:00Z\"\n}"
+            },
+            "url": "{{gatewayUrl}}/events"
+          }
+        }
+      ]
+    },
+    {
+      "name": "D. Optional — Swagger",
+      "item": [
+        {
+          "name": "Gateway Swagger",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayUrl}}/swagger/index.html"
+          }
+        },
+        {
+          "name": "Account Service Swagger",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{accountUrl}}/swagger/index.html"
+          }
+        }
+      ]
+    },
+    {
+      "name": "E. Observability",
+      "item": [
+        {
+          "name": "E1. POST event — watch logs for matching TraceId",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Created (201) or replayed (200)', function () {",
+                  "  pm.expect([200, 201]).to.include(pm.response.code);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"evt-obs-trace-001\",\n  \"accountId\": \"acct-obs-demo\",\n  \"type\": \"CREDIT\",\n  \"amount\": 25.00,\n  \"currency\": \"USD\",\n  \"eventTimestamp\": \"2026-06-26T19:00:00Z\",\n  \"metadata\": { \"source\": \"observability-demo\" }\n}"
+            },
+            "url": "{{gatewayUrl}}/events"
+          }
+        },
+        {
+          "name": "E2. Validation error — traceId in response",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Returns 400', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test('traceId present', function () {",
+                  "  pm.expect(pm.response.json().traceId).to.be.a('string').and.not.empty;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"evt-obs-bad-001\",\n  \"accountId\": \"{{accountId}}\",\n  \"type\": \"CREDIT\",\n  \"amount\": -1.00,\n  \"currency\": \"USD\",\n  \"eventTimestamp\": \"2026-06-26T19:05:00Z\"\n}"
+            },
+            "url": "{{gatewayUrl}}/events"
+          }
+        }
+      ]
+    }
+  ]
+}
+

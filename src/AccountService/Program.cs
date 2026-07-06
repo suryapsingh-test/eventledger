@@ -45,7 +45,7 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<AccountDbContext>();
-    dbContext.Database.EnsureCreated();
+    await AccountDbInitializer.InitializeAsync(dbContext);
 }
 
 app.UseGlobalExceptionHandling();

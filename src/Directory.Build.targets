@@ -1,0 +1,9 @@
+<Project>
+  <!-- Stop stale dev processes before building runnable services (Visual Studio F5 / Rebuild). -->
+  <Target Name="StopEventLedgerDevProcesses"
+          BeforeTargets="PreBuildEvent"
+          Condition="'$(MSBuildProjectName)' == 'EventGateway' Or '$(MSBuildProjectName)' == 'AccountService'">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\scripts\stop-eventledger-dev.ps1&quot;"
+          IgnoreExitCode="false" />
+  </Target>
+</Project>

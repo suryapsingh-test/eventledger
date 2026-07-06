@@ -21,13 +21,13 @@ Clients send **transaction events** (credits and debits) to the **Event Gateway*
     ▼
 ┌─────────────────────────────────────────────────────────┐
 │  Event Gateway (port 8080)                              │
-│                                                         │
+│  Inbound: concurrency bulkhead + per-client rate limit  │
 │  Endpoints → EventService → AccountServiceClient        │
 │                    │                                    │
 │                    ▼                                    │
 │              GatewayDbContext → gateway.db (SQLite)     │
 └──────────────────────────┬──────────────────────────────┘
-                           │ HTTP POST /accounts/{id}/transactions
+                           │ HTTP POST (Polly: CB→retry→timeout)
                            ▼
 ┌─────────────────────────────────────────────────────────┐
 │  Account Service (port 8081)                              │
@@ -50,7 +50,7 @@ Clients send **transaction events** (credits and debits) to the **Event Gateway*
 | `src/EventLedger.Contracts/` | Shared request/response types used by both services |
 | `src/EventGateway/` | Public API — the service clients talk to |
 | `src/AccountService/` | Internal API — balance and transaction logic |
-| `tests/EventGateway.Tests/` | Unit/integration tests for the Gateway only |
+| `tests/EventGateway.Tests/` | Unit tests for the Gateway only |
 | `tests/AccountService.Tests/` | Tests for the Account Service only |
 | `tests/EventLedger.IntegrationTests/` | Tests that exercise Gateway + Account together |
 
@@ -63,6 +63,7 @@ Inside each service, code is grouped by responsibility:
 | `Services/` | Business logic — where the real work happens |
 | `Data/` | Database models and Entity Framework context |
 | `Clients/` | (Gateway only) HTTP calls to another service |
+| `Resilience/` | (Gateway only) Inbound rate limits + outbound Polly policies |
 | `Middleware/` | Cross-cutting HTTP behavior (error handling) |
 | `Logging/`, `Metrics/` | Observability helpers |
 
@@ -79,11 +80,11 @@ Read this file top to bottom. Here is what each block does:
 1. **Serilog** — configures JSON logging to the console, including a `TraceId` on every log line.
 2. **Database** — registers `GatewayDbContext` with SQLite.
 3. **OpenTelemetry** — enables distributed tracing and custom metrics.
-4. **Polly policies** — adds a 5-second timeout and a circuit breaker to outbound HTTP calls.
-5. **HttpClient** — creates a named client `"AccountService"` that uses those Polly policies.
+4. **Inbound resilience** — `AddGatewayInboundResilience()`: global concurrency bulkhead + per-client write rate limit (`UseRateLimiter`).
+5. **Outbound Polly** — `AddAccountServiceResiliencePolicies()` on the `AccountService` HttpClient: circuit breaker → retry (jitter) → timeout.
 6. **Dependency injection** — registers `EventService`, `AccountServiceClient`, etc.
 7. **Startup** — creates database tables if they do not exist (`EnsureCreated`).
-8. **Middleware pipeline** — global error handler, then request logging.
+8. **Middleware pipeline** — global error handler, rate limiter, request logging.
 9. **Endpoints** — `MapEventEndpoints()` and `MapHealthEndpoints()`.
 
 The last line `app.Run()` starts the web server and waits for HTTP requests.
@@ -91,6 +92,8 @@ The last line `app.Run()` starts the web server and waits for HTTP requests.
 ### Account Service — `src/AccountService/Program.cs`
 
 Same idea, but simpler: no HttpClient, no Polly, no custom metrics. It registers `TransactionService`, `AccountQueryService`, and maps account + health endpoints.
+
+On startup it calls **`AccountDbInitializer.InitializeAsync`** instead of bare `EnsureCreated`: creates tables if needed, then patches **legacy** databases that predate the `Balance` column (adds the column and backfills from existing transactions).
 
 ---
 
@@ -137,10 +140,13 @@ File: `src/EventGateway/Endpoints/EventEndpoints.cs`
 Endpoints are **thin**. They should not contain business rules; they parse HTTP, call a service, and format the HTTP response.
 
 ```csharp
-app.MapPost("/events", SubmitEventAsync);
+app.MapPost("/events", SubmitEventAsync)
+    .RequireRateLimiting(GatewayInboundPolicies.PerClientWrites);
 app.MapGet("/events/{eventId}", GetEventByIdAsync);
 app.MapGet("/events", GetEventsByAccountAsync);
 ```
+
+`POST /events` is subject to **inbound** limits: a global concurrency bulkhead (all routes except `/health`) and a per-client fixed-window rate limit on writes. Excess traffic returns **429 Too Many Requests**.
 
 When a POST arrives at `/events`:
 
@@ -248,7 +254,7 @@ Files:
 
 - Primary key on `EventId` (also enforces uniqueness)
 - Index on `(AccountId, EventTimestamp, EventId)` for fast listing queries
-- Decimal stored as string with 2 decimal places
+- `Amount` mapped as `decimal` with precision `(19, 4)` (native EF mapping, not string conversion)
 
 Entity Framework (EF Core) is an **ORM**: you work with C# objects; EF generates SQL for SQLite.
 
@@ -297,42 +303,33 @@ Flow parallels `EventService`:
 2. **Check idempotency** — if `eventId` exists in `Transactions` table, return existing row + current balance
 3. **Begin database transaction** — `BeginTransactionAsync` groups writes so they succeed or fail together
 4. **Auto-create account** if `accountId` is new (first event for that account)
-5. **Insert** a new `Transaction` row
-6. **Commit** and compute balance
+5. **Insert** a new `Transaction` row and **update** `Account.Balance` in the same DB transaction
+6. **Commit** and return `account.Balance` as `balanceAfter`
 
-Balance after each apply:
-
-```csharp
-var balanceAfter = await BalanceCalculator.ComputeBalanceAsync(dbContext, accountId, cancellationToken);
-```
-
-### 3. BalanceCalculator — how balance works
-
-File: `src/AccountService/Services/BalanceCalculator.cs`
+Balance is **maintained incrementally** (O(1)) instead of scanning all transactions:
 
 ```csharp
-// For every transaction on this account:
-if (transaction.Type == "CREDIT") credits += transaction.Amount;
-else if (transaction.Type == "DEBIT")  debits += transaction.Amount;
-
-return credits - debits;
+ApplyBalanceDelta(account, request.Type, request.Amount);
+// CREDIT → Balance += amount; DEBIT → Balance -= amount
 ```
 
-**Why this handles out-of-order arrival:** balance is the sum of all transactions, not "last event wins." It does not matter whether a 10:00 event arrives before or after a 12:00 event — both rows exist in the database and both count.
+On idempotent replay, balance is read from `Account.Balance` via `GetAccountBalanceAsync`.
+
+**Why this still handles out-of-order arrival:** each transaction is applied exactly once; CREDIT/DEBIT addition is commutative, so the final `Account.Balance` equals sum(CREDITs) − sum(DEBITs) regardless of arrival order.
 
 Event **listing** order is handled separately in the Gateway (`OrderBy EventTimestamp`). Balance and listing solve different problems.
 
-### 4. AccountQueryService — read-only queries
+### 3. AccountQueryService — read-only queries
 
 File: `src/AccountService/Services/AccountQueryService.cs`
 
-Used by GET endpoints. Loads account metadata, computes balance, and for account detail returns the 20 most recent transactions ordered by `EventTimestamp` descending.
+Used by GET endpoints. Reads `account.Balance` directly (no full transaction scan) and for account detail returns the 20 most recent transactions ordered by `EventTimestamp` descending.
 
-### 5. Database — Account side
+### 4. Database — Account side
 
 Files:
 
-- `src/AccountService/Data/Entities/Account.cs`
+- `src/AccountService/Data/Entities/Account.cs` — includes `Balance` column
 - `src/AccountService/Data/Entities/Transaction.cs`
 - `src/AccountService/Data/AccountDbContext.cs`
 
@@ -341,6 +338,18 @@ Key design points:
 - `Transaction.EventId` has a **unique index** — database-level idempotency enforcement
 - `Transaction.Id` is an auto-increment surrogate key (internal row ID)
 - `Account` ↔ `Transaction` is a one-to-many relationship with foreign key on `AccountId`
+
+### 5. Legacy database migration — `AccountDbInitializer`
+
+File: `src/AccountService/Data/AccountDbInitializer.cs`
+
+If you already have an `account.db` from an earlier version **without** a `Balance` column on `Accounts`, startup runs a one-time patch:
+
+1. `EnsureCreatedAsync` — create tables for fresh installs
+2. `ALTER TABLE Accounts ADD COLUMN Balance` if missing
+3. Backfill `Balance` from existing `Transactions` (sum of CREDITs minus DEBITs)
+
+New installs get `Balance` from EF model creation; legacy installs are upgraded in place. Tests: `LegacySchemaMigrationTests.cs`.
 
 ---
 
@@ -368,32 +377,46 @@ The Gateway forwards `Activity.Current?.Id` as the `traceparent` HTTP header whe
 
 File: `src/EventGateway/Metrics/EventMetrics.cs`
 
-Two counters:
+Three counters:
 
 - `eventledger.events.processed` — incremented on successful new events
 - `eventledger.events.failed` — incremented on validation or downstream failures
+- `eventledger.inbound.throttled` — incremented when inbound rate/concurrency limits reject a request
 
 Registered with OpenTelemetry and exported to the console in development.
 
-### Resiliency (Polly)
+### Resiliency — two layers
 
-Configured once in Gateway `Program.cs`:
+#### Inbound (client → Gateway)
+
+File: `src/EventGateway/Resilience/GatewayInboundResilienceExtensions.cs`
+
+| Control | Purpose |
+|---------|---------|
+| Global concurrency bulkhead | Caps in-flight Gateway requests (`Gateway:Inbound:ConcurrencyLimit`) |
+| Per-client write rate limit | Fixed window on `POST /events` per IP |
+| `/health` exempt | Probes bypass the bulkhead |
+
+Returns **429** with ProblemDetails when limits are exceeded. Retry and circuit breaker are **not** used on inbound HTTP — clients resubmit.
+
+#### Outbound (Gateway → Account Service)
+
+File: `src/EventGateway/Resilience/AccountServiceResilienceExtensions.cs`
+
+Policies are wrapped as a **singleton** `Policy.WrapAsync(circuitBreaker, retry, timeout)`:
 
 ```csharp
-var timeoutPolicy = Policy.TimeoutAsync<HttpResponseMessage>(TimeSpan.FromSeconds(5));
-var circuitBreakerPolicy = HttpPolicyExtensions
-    .HandleTransientHttpError()
-    .Or<TimeoutRejectedException>()
-    .CircuitBreakerAsync(5, TimeSpan.FromSeconds(30));
-
 builder.Services.AddHttpClient("AccountService")
-    .AddPolicyHandler(circuitBreakerPolicy)
-    .AddPolicyHandler(timeoutPolicy);
+    .AddAccountServiceResiliencePolicies();
 ```
 
-**No retry on POST** — retries could cause confusion even with idempotency; the client or caller should retry explicitly.
+| Policy | Setting | Notes |
+|--------|---------|-------|
+| Circuit breaker | 5 failures / 30s break | Outermost — fail fast while open |
+| Retry | 3 retries (up to 4 HTTP attempts), exponential backoff + jitter | Safe because Account Service is idempotent on `eventId` |
+| Timeout | 5 seconds per attempt | Innermost — per HTTP attempt |
 
-**Circuit breaker** — after 5 failures in a row, stop calling Account Service for 30 seconds. Fail fast instead of waiting on a broken dependency.
+`AccountServiceClient` catches `BrokenCircuitException`, `TimeoutRejectedException`, and network errors and returns `Success: false` so `EventService` can return **503** without persisting.
 
 ---
 
@@ -438,6 +461,7 @@ Other files:
 | `ValidationTests.cs` | Bad payloads → 400 |
 | `EventQueryTests.cs` | GET by id and by account |
 | `DegradationTests.cs` | GET still works when Account Service fails |
+| `InboundResilienceTests.cs` | Inbound bulkhead and per-client rate limit → 429 |
 | `HealthTests.cs` | `/health` returns database status |
 
 ### Account Service tests (`AccountService.Tests`)
@@ -448,6 +472,10 @@ Other files:
 | `OutOfOrderBalanceTests.cs` | Submit events in reverse time order → correct balance |
 | `BalanceEndpointTests.cs` | GET balance |
 | `DebitBalanceTests.cs` | Debits reduce balance |
+| `AccountDetailEndpointTests.cs` | GET account + recent transactions |
+| `AccountValidationTests.cs` | Bad transaction payloads → 400 |
+| `HealthEndpointTests.cs` | `/health` returns database status |
+| `LegacySchemaMigrationTests.cs` | Legacy DB without `Balance` column patched on startup |
 
 ### Integration tests (`EventLedger.IntegrationTests`)
 
@@ -456,11 +484,13 @@ These test the **real HTTP path** through the Gateway with a stub or capturing h
 | Test file | What it proves |
 |-----------|----------------|
 | `EndToEndEventFlowTests.cs` | Full happy path |
+| `IdempotencyIntegrationTests.cs` | Duplicate `eventId` end-to-end through Gateway |
 | `TracePropagationTests.cs` | `traceparent` header forwarded |
-| `ResiliencyTests.cs` | 503, timeout, circuit breaker opens |
+| `ResiliencyTests.cs` | Outbound retry (up to 4 attempts), 503, circuit breaker opens |
 | `OutOfOrderGatewayIntegrationTests.cs` | Listing order across services |
+| `HealthIntegrationTests.cs` | Health endpoints for Gateway and Account |
 
-Run all tests:
+Run all tests (**46 total** — 21 Gateway + 11 Account + 14 Integration):
 
 ```powershell
 dotnet test src/EventLedger.sln
@@ -480,7 +510,9 @@ When reading a test, start with the **method name** — it describes the scenari
 | **Idempotency** | Calling the same operation twice has the same effect as once |
 | **ProblemDetails** | Standard JSON error response (RFC 7807 style) |
 | **Middleware** | Code that runs on every HTTP request before/after endpoints |
-| **Polly** | Library for retries, timeouts, circuit breakers |
+| **Polly** | Library for retries, timeouts, circuit breakers (outbound) |
+| **Rate limiter** | ASP.NET middleware that rejects excess inbound requests (429) |
+| **Bulkhead** | Concurrency cap isolating resource usage (inbound global limit; outbound via Polly isolation patterns) |
 | **Dependency injection** | Framework supplies object instances (e.g. `EventService`) automatically |
 | **WebApplicationFactory** | Test helper that hosts the app in-process for automated tests |
 | **traceparent** | W3C header that links spans across services in one trace |
@@ -498,9 +530,10 @@ Work through these files in sequence on your first pass:
 5. `src/EventGateway/Clients/AccountServiceClient.cs` — see the service call
 6. `src/AccountService/Endpoints/AccountEndpoints.cs` — Account Service HTTP surface
 7. `src/AccountService/Services/TransactionService.cs` — balance + idempotency
-8. `src/AccountService/Services/BalanceCalculator.cs` — balance math
-9. `tests/EventGateway.Tests/IdempotencyTests.cs` — see expected behavior as code
-10. `tests/EventLedger.IntegrationTests/EndToEndEventFlowTests.cs` — full flow
+8. `src/AccountService/Data/AccountDbInitializer.cs` — legacy DB migration
+9. `src/EventGateway/Resilience/` — inbound limits + outbound Polly
+10. `tests/EventGateway.Tests/IdempotencyTests.cs` — see expected behavior as code
+11. `tests/EventLedger.IntegrationTests/EndToEndEventFlowTests.cs` — full flow
 
 After that, explore `Middleware/`, `Metrics/`, and `Logging/` when you want to understand observability and error handling.
 
@@ -528,6 +561,7 @@ Gateway: `EventRequestValidator.cs`. Account Service: `TransactionRequestValidat
 ## Next steps
 
 - Run the app locally and set breakpoints in `EventService.SubmitEventAsync`
+- Step through [`demo/EventLedger.http`](../demo/EventLedger.http) (REST Client) or import the Postman collection
 - Change a validation rule and watch the matching test fail, then pass again
 - Read [design.md](../artifacts/03-architecture/design.md) for architecture decisions (DEC-01 through DEC-05)
 - Skim [api-contracts.md](../artifacts/03-architecture/api-contracts.md) for full request/response examples

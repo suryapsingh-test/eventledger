@@ -16,7 +16,7 @@ Stores successfully applied events (persist-after-success, DEC-05).
 | `EventId` | `TEXT` PK | Business id from client |
 | `AccountId` | `TEXT` NOT NULL | Indexed |
 | `Type` | `TEXT` NOT NULL | `CREDIT` \| `DEBIT` |
-| `Amount` | `TEXT` NOT NULL | Decimal stored as string for precision |
+| `Amount` | `REAL` / decimal | EF `decimal(19,4)` — native mapping |
 | `Currency` | `TEXT` NOT NULL | |
 | `EventTimestamp` | `TEXT` NOT NULL | ISO 8601 |
 | `MetadataJson` | `TEXT` NULL | Serialized metadata object |
@@ -43,9 +43,7 @@ Stores successfully applied events (persist-after-success, DEC-05).
 ```csharp
 entity.HasKey(e => e.EventId);
 entity.HasIndex(e => new { e.AccountId, e.EventTimestamp, e.EventId });
-entity.Property(e => e.Amount).HasConversion(
-    v => v.ToString("F2"),
-    v => decimal.Parse(v));
+entity.Property(e => e.Amount).HasPrecision(19, 4);
 ```
 
 ---
@@ -59,6 +57,7 @@ entity.Property(e => e.Amount).HasConversion(
 | `AccountId` | `TEXT` PK | |
 | `CreatedAt` | `TEXT` NOT NULL | UTC |
 | `Currency` | `TEXT` NOT NULL | Set from first transaction |
+| `Balance` | decimal | Maintained incrementally (O(1) reads) |
 
 **Indexes:** Primary key only.
 
@@ -72,7 +71,7 @@ entity.Property(e => e.Amount).HasConversion(
 | `EventId` | `TEXT` NOT NULL | **Unique** — global idempotency |
 | `AccountId` | `TEXT` NOT NULL | FK → Account |
 | `Type` | `TEXT` NOT NULL | `CREDIT` \| `DEBIT` |
-| `Amount` | `TEXT` NOT NULL | Decimal as string |
+| `Amount` | decimal | EF `decimal(19,4)` |
 | `Currency` | `TEXT` NOT NULL | |
 | `EventTimestamp` | `TEXT` NOT NULL | Business time |
 | `AppliedAt` | `TEXT` NOT NULL | Processing time |
@@ -94,19 +93,9 @@ Account 1 ── * Transaction
 
 ### Balance computation
 
-**No cached balance column** in v1 — computed on read:
+**Maintained `Account.Balance`** — updated in the same DB transaction as each `Transaction` insert (`CREDIT` adds, `DEBIT` subtracts). Reads use O(1) lookup; result still equals sum(CREDITs) − sum(DEBITs).
 
-```sql
-SELECT
-  COALESCE(SUM(CASE WHEN Type = 'CREDIT' THEN Amount ELSE 0 END), 0)
-  - COALESCE(SUM(CASE WHEN Type = 'DEBIT' THEN Amount ELSE 0 END), 0)
-FROM Transactions
-WHERE AccountId = @accountId
-```
-
-Optional optimization (out of scope): materialized `Balance` updated in same transaction as insert — not required for take-home.
-
-**Out-of-order:** Insert order irrelevant; sum is commutative.
+**Out-of-order:** Insert order irrelevant; commutative arithmetic.
 
 **Negative balance:** Allowed (DEC-02). DEBIT always inserts if `eventId` is new.
 

@@ -1,3 +1,4 @@
+using EventGateway.Resilience;
 using EventGateway.Services;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -14,6 +15,7 @@ public sealed class CapturingGatewayWebApplicationFactory : WebApplicationFactor
 {
     private readonly string _dbPath;
     private readonly bool _useCapturingHandler;
+    private readonly Dictionary<string, string?> _resilienceSettings = new(StringComparer.OrdinalIgnoreCase);
 
     public CapturingAccountServiceHandler AccountHandler { get; } = new();
 
@@ -23,6 +25,15 @@ public sealed class CapturingGatewayWebApplicationFactory : WebApplicationFactor
         _dbPath = Path.Combine(Path.GetTempPath(), $"integration-gateway-{Guid.NewGuid():N}.db");
     }
 
+    public void WithResilienceOptions(AccountServiceResilienceOptions options)
+    {
+        _resilienceSettings["AccountService:Resilience:MaxRetryAttempts"] = options.MaxRetryAttempts.ToString();
+        _resilienceSettings["AccountService:Resilience:RetryBaseDelayMs"] = options.RetryBaseDelayMs.ToString();
+        _resilienceSettings["AccountService:Resilience:TimeoutSeconds"] = options.TimeoutSeconds.ToString();
+        _resilienceSettings["AccountService:Resilience:CircuitBreakerFailures"] = options.CircuitBreakerFailures.ToString();
+        _resilienceSettings["AccountService:Resilience:CircuitBreakerBreakSeconds"] = options.CircuitBreakerBreakSeconds.ToString();
+    }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Development");
@@ -30,6 +41,11 @@ public sealed class CapturingGatewayWebApplicationFactory : WebApplicationFactor
         builder.UseSetting(
             "AccountService:BaseUrl",
             _useCapturingHandler ? "http://account-service.test" : "http://127.0.0.1:1");
+
+        foreach (var (key, value) in _resilienceSettings)
+        {
+            builder.UseSetting(key, value);
+        }
 
         if (_useCapturingHandler)
         {

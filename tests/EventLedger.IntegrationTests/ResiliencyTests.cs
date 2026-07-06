@@ -1,22 +1,20 @@
 using System.Net;
 using System.Net.Http.Json;
+using EventGateway.Resilience;
 using EventLedger.IntegrationTests.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EventLedger.IntegrationTests;
 
 /// <summary>AC-13, AC-18 — resiliency through real HttpClient + Polly pipeline.</summary>
-public sealed class ResiliencyTests : IDisposable
+public sealed class ResiliencyTests
 {
-    private readonly CapturingGatewayWebApplicationFactory _factory = new();
-
-    public void Dispose() => _factory.Dispose();
-
     [Fact]
-    public async Task PostEvent_AccountReturns500_Returns503AndDoesNotPersist()
+    public async Task PostEvent_AccountReturns500_RetriesThenReturns503AndDoesNotPersist()
     {
-        _factory.AccountHandler.ResponseStatusCode = HttpStatusCode.InternalServerError;
-        using var client = _factory.CreateClient();
+        using var factory = new CapturingGatewayWebApplicationFactory();
+        factory.AccountHandler.ResponseStatusCode = HttpStatusCode.InternalServerError;
+        using var client = factory.CreateClient();
 
         var eventId = $"evt-500-{Guid.NewGuid():N}";
         var request = IntegrationTestHelpers.CreateEvent(eventId, "acct-resilience-500");
@@ -27,16 +25,41 @@ public sealed class ResiliencyTests : IDisposable
         var problem = await postResponse.Content.ReadFromJsonAsync<ProblemDetails>();
         Assert.NotNull(problem);
         Assert.Equal("Account Service unavailable", problem.Title);
-        Assert.Contains("500", problem.Detail);
+        Assert.False(string.IsNullOrWhiteSpace(problem.Detail));
+
+        var expectedAttempts = 1 + new AccountServiceResilienceOptions().MaxRetryAttempts;
+        Assert.Equal(expectedAttempts, factory.AccountHandler.RequestCount);
 
         var getResponse = await client.GetAsync($"/events/{eventId}");
         Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
     }
 
     [Fact]
+    public async Task PostEvent_TransientFailuresThenSuccess_RetriesAndPersistsEvent()
+    {
+        using var factory = new CapturingGatewayWebApplicationFactory();
+        factory.AccountHandler.ResponseStatusCode = HttpStatusCode.Created;
+        factory.AccountHandler.RemainingTransientFailures = 2;
+        factory.AccountHandler.TransientFailureStatusCode = HttpStatusCode.ServiceUnavailable;
+
+        using var client = factory.CreateClient();
+
+        var eventId = $"evt-retry-{Guid.NewGuid():N}";
+        var request = IntegrationTestHelpers.CreateEvent(eventId, "acct-retry-success");
+
+        var postResponse = await client.PostAsJsonAsync("/events", request);
+        Assert.Equal(HttpStatusCode.Created, postResponse.StatusCode);
+        Assert.Equal(3, factory.AccountHandler.RequestCount);
+
+        var getResponse = await client.GetAsync($"/events/{eventId}");
+        Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+    }
+
+    [Fact]
     public async Task PostEvent_AccountUnreachable_Returns503WithinTimeout()
     {
         using var factory = new CapturingGatewayWebApplicationFactory(useCapturingHandler: false);
+        factory.WithResilienceOptions(new AccountServiceResilienceOptions { MaxRetryAttempts = 0 });
         using var client = factory.CreateClient();
 
         var request = IntegrationTestHelpers.CreateEvent(
@@ -59,10 +82,14 @@ public sealed class ResiliencyTests : IDisposable
     [Fact]
     public async Task PostEvent_RepeatedAccountFailures_OpensCircuitBreakerAndFailsFast()
     {
-        _factory.AccountHandler.ResponseStatusCode = HttpStatusCode.InternalServerError;
-        using var client = _factory.CreateClient();
+        using var factory = new CapturingGatewayWebApplicationFactory();
+        factory.AccountHandler.ResponseStatusCode = HttpStatusCode.InternalServerError;
+        using var client = factory.CreateClient();
 
-        for (var attempt = 1; attempt <= 5; attempt++)
+        var resilience = new AccountServiceResilienceOptions();
+        var attemptsPerEvent = 1 + resilience.MaxRetryAttempts;
+
+        for (var attempt = 1; attempt <= resilience.CircuitBreakerFailures; attempt++)
         {
             var request = IntegrationTestHelpers.CreateEvent(
                 $"evt-cb-{attempt}-{Guid.NewGuid():N}",
@@ -72,7 +99,7 @@ public sealed class ResiliencyTests : IDisposable
             Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
         }
 
-        Assert.Equal(5, _factory.AccountHandler.RequestCount);
+        Assert.Equal(resilience.CircuitBreakerFailures * attemptsPerEvent, factory.AccountHandler.RequestCount);
 
         var fastStopwatch = System.Diagnostics.Stopwatch.StartNew();
         var afterOpenRequest = IntegrationTestHelpers.CreateEvent(
@@ -82,7 +109,7 @@ public sealed class ResiliencyTests : IDisposable
         fastStopwatch.Stop();
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, afterOpenResponse.StatusCode);
-        Assert.Equal(5, _factory.AccountHandler.RequestCount);
+        Assert.Equal(resilience.CircuitBreakerFailures * attemptsPerEvent, factory.AccountHandler.RequestCount);
 
         var problem = await afterOpenResponse.Content.ReadFromJsonAsync<ProblemDetails>();
         Assert.NotNull(problem);

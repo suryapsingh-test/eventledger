@@ -35,3 +35,14 @@ dotnet test src/EventLedger.sln
 ```
 
 All passing as of 2026-06-16 (12 smoke tests: 7 Gateway + 5 Account).
+
+## Post-sprint enhancements (2026-06+)
+
+| Topic | Decision |
+|-------|----------|
+| Balance | `Account.Balance` maintained O(1); removed full-transaction scan |
+| Money columns | Native `decimal(19,4)` in EF (no string conversion) |
+| Outbound Polly | `AccountServiceResilienceExtensions`: `WrapAsync(circuitBreaker, retry, timeout)` singleton; 3 retries with jitter |
+| Inbound limits | `GatewayInboundResilienceExtensions`: concurrency bulkhead + per-client write rate limit; 429 on reject |
+| Metrics | Added `eventledger.inbound.throttled` |
+| Tests | 46 total (`InboundResilienceTests`, `LegacySchemaMigrationTests`, updated `ResiliencyTests` for retry) |

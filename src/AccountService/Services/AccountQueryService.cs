@@ -24,12 +24,10 @@ public sealed class AccountQueryService(AccountDbContext dbContext) : IAccountQu
             return null;
         }
 
-        var balance = await BalanceCalculator.ComputeBalanceAsync(dbContext, accountId, cancellationToken);
-
         return new BalanceResponse(
             account.AccountId,
             account.Currency,
-            balance,
+            account.Balance,
             DateTimeOffset.UtcNow.ToString("O"));
     }
 
@@ -43,8 +41,6 @@ public sealed class AccountQueryService(AccountDbContext dbContext) : IAccountQu
         {
             return null;
         }
-
-        var balance = await BalanceCalculator.ComputeBalanceAsync(dbContext, accountId, cancellationToken);
 
         var recentTransactions = await dbContext.Transactions
             .AsNoTracking()
@@ -63,7 +59,7 @@ public sealed class AccountQueryService(AccountDbContext dbContext) : IAccountQu
         return new AccountDetailResponse(
             account.AccountId,
             account.CreatedAt,
-            balance,
+            account.Balance,
             account.Currency,
             recentTransactions);
     }

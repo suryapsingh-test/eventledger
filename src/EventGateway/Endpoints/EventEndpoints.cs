@@ -1,7 +1,9 @@
 using System.Diagnostics;
 using System.Text.Json;
 using EventGateway.Metrics;
+using EventGateway.Resilience;
 using EventGateway.Services;
+using Microsoft.AspNetCore.RateLimiting;
 using EventLedger.Contracts.Events;
 using EventLedger.Contracts.Headers;
 using Microsoft.AspNetCore.Mvc;
@@ -19,6 +21,7 @@ public static class EventEndpoints
     public static IEndpointRouteBuilder MapEventEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapPost("/events", SubmitEventAsync)
+            .RequireRateLimiting(GatewayInboundPolicies.PerClientWrites)
             .WithName("SubmitEvent")
             .WithTags("Events")
             .WithSummary("Submit a transaction event")
@@ -27,7 +30,8 @@ public static class EventEndpoints
             .Produces<EventResponse>(StatusCodes.Status201Created)
             .Produces<EventResponse>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
+            .ProducesProblem(StatusCodes.Status503ServiceUnavailable)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
         app.MapGet("/events/{eventId}", GetEventByIdAsync)
             .WithName("GetEventById")

@@ -132,15 +132,25 @@ No reordering or replay engine required.
 | Account slow | Timeout → **503** | Unaffected | Timeout → **503** |
 | Gateway down | N/A | N/A | Account still serves internal reads |
 
-**Polly policy (Gateway → Account):**
+**Resiliency — inbound (Gateway entry):**
+
+| Control | Setting |
+|---------|---------|
+| Concurrency bulkhead | 100 concurrent, queue 50 (global; `/health` exempt) |
+| Per-client write rate limit | 300 POST `/events` per IP per minute |
+| Rejection | **429 Too Many Requests** + `eventledger.inbound.throttled` metric |
+
+**Polly policy (Gateway → Account, outbound):**
 
 | Policy | Setting |
 |--------|---------|
-| Timeout | 5 seconds per attempt |
-| Circuit breaker | Open after 5 consecutive failures; break duration 30s |
-| Retry | **None** on POST (avoid duplicate side effects; idempotency covers client retries) |
+| Circuit breaker | Outermost — open after 5 consecutive failures; break duration 30s |
+| Retry | 3 retries (up to 4 HTTP attempts), exponential backoff + jitter (200ms base); safe with idempotency |
+| Timeout | 5 seconds per attempt (innermost) |
 
-**Rationale for circuit breaker + timeout:** Handout requires at least one pattern; combination gives fast failure under outage and protects thread pool. Documented in README resiliency section.
+Wrapped via `Policy.WrapAsync(circuitBreaker, retry, timeout)` as a singleton policy.
+
+**Rationale:** Inbound limits protect the Gateway from client floods; outbound Polly protects from Account Service failure. Retry on outbound POST is safe because `eventId` idempotency prevents double application.
 
 ---
 
@@ -176,6 +186,7 @@ Example log shape:
 |--------|------|---------|-------------|
 | `eventledger.events.processed` | Counter | Gateway | Incremented on successful POST (not on replay) |
 | `eventledger.events.failed` | Counter | Gateway | Validation failures + downstream failures |
+| `eventledger.inbound.throttled` | Counter | Gateway | Inbound rate/concurrency limit rejections |
 
 Exposed via OpenTelemetry metrics (console or OTLP). README documents how to observe.
 

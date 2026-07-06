@@ -1,0 +1,43 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Account Service",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "stop-eventledger-dev",
+      "projectPath": "${workspaceFolder}/src/AccountService/AccountService.csproj",
+      "launchBrowser": {
+        "enabled": true,
+        "launchUrl": "swagger"
+      },
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ASPNETCORE_URLS": "http://localhost:8081"
+      }
+    },
+    {
+      "name": "Event Gateway",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "stop-eventledger-dev",
+      "projectPath": "${workspaceFolder}/src/EventGateway/EventGateway.csproj",
+      "launchBrowser": {
+        "enabled": true,
+        "launchUrl": "swagger"
+      },
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ASPNETCORE_URLS": "http://localhost:8080",
+        "AccountService__BaseUrl": "http://localhost:8081"
+      }
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Event Ledger (Account + Gateway)",
+      "configurations": ["Account Service", "Event Gateway"],
+      "stopAll": true
+    }
+  ]
+}

@@ -50,18 +50,18 @@ Integration coverage exercises Gateway + Account + Contracts together via real H
 
 | Suite | Tests |
 |-------|------:|
-| EventGateway.Tests | 18 |
-| AccountService.Tests | 9 |
-| EventLedger.IntegrationTests | 13 |
-| **Total** | **40** |
+| EventGateway.Tests | 21 |
+| AccountService.Tests | 11 |
+| EventLedger.IntegrationTests | 14 |
+| **Total** | **46** |
 
 ---
 
 ## Gaps (acceptable for take-home)
 
-- Gateway `Program.cs` / Polly wiring partially covered by integration tests only
+- Gateway `Resilience/` (inbound + outbound Polly) — integration and `InboundResilienceTests` cover behavior
 - Account `AccountQueryService` detail path — lower coverage in integration-only runs
-- REV-01-M03 addressed via integration suite (7 E2E + 6 resiliency/trace)
+- REV-01-M03 addressed via integration suite (E2E + resiliency/trace + inbound limits)
 
 ---
 

@@ -1,7 +1,5 @@
-using System.Globalization;
 using AccountService.Data.Entities;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace AccountService.Data;
 
@@ -13,10 +11,6 @@ public sealed class AccountDbContext(DbContextOptions<AccountDbContext> options)
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        var decimalToString = new ValueConverter<decimal, string>(
-            value => value.ToString("F2", CultureInfo.InvariantCulture),
-            value => decimal.Parse(value, CultureInfo.InvariantCulture));
-
         modelBuilder.Entity<Account>(entity =>
         {
             entity.ToTable("Accounts");
@@ -24,6 +18,9 @@ public sealed class AccountDbContext(DbContextOptions<AccountDbContext> options)
             entity.Property(account => account.AccountId).HasMaxLength(64);
             entity.Property(account => account.CreatedAt).IsRequired();
             entity.Property(account => account.Currency).IsRequired().HasMaxLength(8);
+            entity.Property(account => account.Balance)
+                .IsRequired()
+                .HasPrecision(19, 4);
         });
 
         modelBuilder.Entity<Transaction>(entity =>
@@ -36,7 +33,7 @@ public sealed class AccountDbContext(DbContextOptions<AccountDbContext> options)
             entity.Property(transaction => transaction.Type).IsRequired().HasMaxLength(16);
             entity.Property(transaction => transaction.Amount)
                 .IsRequired()
-                .HasConversion(decimalToString);
+                .HasPrecision(19, 4);
             entity.Property(transaction => transaction.Currency).IsRequired().HasMaxLength(8);
             entity.Property(transaction => transaction.EventTimestamp).IsRequired();
             entity.Property(transaction => transaction.AppliedAt).IsRequired();
