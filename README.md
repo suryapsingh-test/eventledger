@@ -19,7 +19,7 @@ Use this guide depending on your goal:
 **Suggested 10-minute review path**
 
 1. Read [Architecture overview](#architecture-overview) (services, endpoints, core behaviors).
-2. Run `dotnet test src/EventLedger.sln` — all **46 tests** should pass.
+2. Run `dotnet test src/EventLedger.sln` — all **48 tests** should pass.
 3. Skim `src/EventGateway/Services/EventService.cs` (write path) and `src/AccountService/Services/TransactionService.cs` (balance + idempotency).
 4. Optional: read [docs/code-walkthrough.md](docs/code-walkthrough.md) for a full guided tour.
 5. Optional: `docker compose up --build` and exercise the [API examples](#how-to-use-the-api).
@@ -224,10 +224,10 @@ Pre-built request sequences live in [`demo/`](demo/):
 | File | Tool |
 |------|------|
 | [`demo/EventLedger.http`](demo/EventLedger.http) | VS Code REST Client, Visual Studio, Rider |
-| [`demo/EventLedger.postman_collection.json`](demo/EventLedger.postman_collection.json) | Postman — import collection, run folder A → B → C (D optional) |
+| [`demo/EventLedger.postman_collection.json`](demo/EventLedger.postman_collection.json) | Postman — import collection, run folder A → B → C (D, E, F optional) |
 | [`demo/demo-script.html`](demo/demo-script.html) | Interview demo script — open in browser (narration + checkboxes) |
 
-The demo covers happy path, idempotency, out-of-order arrival, validation errors, and documents **429** / **503** responses. **Reset data before re-running:** `docker compose down -v` or delete local `gateway.db` / `account.db` — fixed event IDs return **200** (replay) instead of **201** on repeat.
+The demo covers happy path, idempotency, out-of-order arrival, validation errors, graceful degradation (section **F**), and documents **429** / **503** responses. **Reset data before re-running:** `docker compose down -v` or delete local `gateway.db` / `account.db` — fixed event IDs return **200** (replay) instead of **201** on repeat.
 
 **Event payload reference**
 
@@ -247,13 +247,13 @@ The demo covers happy path, idempotency, out-of-order arrival, validation errors
 dotnet test src/EventLedger.sln
 ```
 
-**46 tests** across three projects (21 + 11 + 14):
+**48 tests** across three projects (21 + 11 + 16):
 
 | Project | Tests | Coverage |
 |---------|------:|----------|
 | `EventGateway.Tests` | 21 | Idempotency, validation, inbound bulkhead/rate limit (`InboundResilienceTests`), graceful degradation |
 | `AccountService.Tests` | 11 | Idempotency, out-of-order balance, validation, balance/account endpoints, health, legacy schema migration (`LegacySchemaMigrationTests`) |
-| `EventLedger.IntegrationTests` | 14 | End-to-end flow, trace propagation, outbound resiliency (retry, 503, circuit breaker) |
+| `EventLedger.IntegrationTests` | 16 | End-to-end flow, trace propagation, outbound resiliency (retry, 503, circuit breaker), Account unavailable balance reads |
 
 ### Resiliency — inbound (client → Gateway)
 

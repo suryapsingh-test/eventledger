@@ -177,6 +177,8 @@
     .pill-201 { background: var(--success-soft); color: var(--success); }
     .pill-200 { background: var(--accent-soft); color: var(--accent); }
     .pill-400 { background: var(--danger-soft); color: var(--danger); }
+    .pill-404 { background: var(--danger-soft); color: var(--danger); }
+    .pill-503 { background: var(--warning-soft); color: var(--warning); }
     .pill-info { background: #f1f5f9; color: var(--muted); }
     .pill-highlight { background: var(--warning-soft); color: var(--warning); }
 
@@ -256,7 +258,7 @@
 
 <header>
   <h1>Event Ledger — Interview Demo Script</h1>
-  <p class="subtitle">Live walkthrough · Gateway <code>:8080</code> · Account Service <code>:8081</code> · Run order A → B → C</p>
+  <p class="subtitle">Live walkthrough · Gateway <code>:8080</code> · Account Service <code>:8081</code> · Run order A → B → C (D, E, F optional)</p>
   <div class="badges">
     <span class="badge badge-time">~12 min total</span>
     <span class="badge">demo/EventLedger.http</span>
@@ -278,6 +280,7 @@
     <li><a href="#section-c">C — Validation errors</a></li>
     <li><a href="#section-d">D — Swagger (optional)</a></li>
     <li><a href="#section-e">E — Observability (optional)</a></li>
+    <li><a href="#section-f">F — Graceful degradation (optional)</a></li>
     <li><a href="#closing">Closing</a></li>
     <li><a href="#reference">Quick reference table</a></li>
     <li><a href="#troubleshooting">Troubleshooting</a></li>
@@ -587,9 +590,76 @@ docker compose down -v && docker compose up --build</pre>
   </table>
 </section>
 
+<section id="section-f" class="card">
+  <h2><span class="section-label">F</span> Graceful degradation — ~2 min (optional)</h2>
+  <p style="font-size:0.9rem;color:var(--muted);margin-bottom:0.75rem"><strong>Prerequisites:</strong> Complete <a href="#section-a">section A</a> first so the Gateway has persisted events. Then stop Account Service.</p>
+  <pre>docker compose stop account-service</pre>
+  <p style="font-size:0.9rem;color:var(--muted);margin:0.5rem 0">Local alternative: stop the <code>dotnet run</code> process on port <code>8081</code>.</p>
+
+  <div class="step highlight-step" data-step>
+    <div class="step-header">
+      <input type="checkbox" aria-label="Mark step F1 complete" />
+      <div>
+        <div class="step-title">F1 — POST while Account is down ⭐</div>
+        <div class="step-action"><code>POST /events</code> · eventId <code>evt-degrade-001</code></div>
+      </div>
+    </div>
+    <div class="say">With Account Service stopped, new events cannot be applied. Gateway returns 503 immediately — Polly retries exhaust, circuit may open — and <strong>does not persist</strong> the event. No orphan audit records.</div>
+    <div class="expect"><span class="pill pill-503">503 Service Unavailable</span><span class="pill pill-info">ProblemDetails · Account Service unavailable</span></div>
+  </div>
+
+  <div class="step" data-step>
+    <div class="step-header">
+      <input type="checkbox" aria-label="Mark step F2 complete" />
+      <div>
+        <div class="step-title">F2 — Event not stored</div>
+        <div class="step-action"><code>GET /events/evt-degrade-001</code></div>
+      </div>
+    </div>
+    <div class="say">Confirm the failed POST left no trace in the Gateway database.</div>
+    <div class="expect"><span class="pill pill-404">404 Not Found</span></div>
+  </div>
+
+  <div class="step highlight-step" data-step>
+    <div class="step-header">
+      <input type="checkbox" aria-label="Mark step F3 complete" />
+      <div>
+        <div class="step-title">F3 — GET /events still works ⭐</div>
+        <div class="step-action"><code>GET /events/evt-credit-1001</code> (from step 1)</div>
+      </div>
+    </div>
+    <div class="say">Read paths hit Gateway local SQLite only — they keep working when Account Service is down. This is the graceful degradation story for auditors and support teams.</div>
+    <div class="expect"><span class="pill pill-200">200 OK</span><span class="pill pill-info">event from section A</span></div>
+  </div>
+
+  <div class="step" data-step>
+    <div class="step-header">
+      <input type="checkbox" aria-label="Mark step F4 complete" />
+      <div>
+        <div class="step-title">F4 — Balance query fails</div>
+        <div class="step-action"><code>GET /accounts/acct-demo-001/balance</code></div>
+      </div>
+    </div>
+    <div class="say">Balance lives on Account Service — when it's unreachable, clients get connection refused (or timeout), not a stale balance from Gateway.</div>
+    <div class="expect"><span class="pill pill-info">Connection refused / request failed</span></div>
+  </div>
+
+  <div class="step" data-step>
+    <div class="step-header">
+      <input type="checkbox" aria-label="Mark step F5 complete" />
+      <div>
+        <div class="step-title">F5 — Restart Account Service</div>
+        <div class="step-action">Restore dependency</div>
+      </div>
+    </div>
+    <pre>docker compose start account-service</pre>
+    <div class="say">Restart Account Service before continuing demos or running sections B/C again. Re-check <code>GET :8081/health</code>.</div>
+  </div>
+</section>
+
 <section id="closing" class="card">
   <h2>Closing — 30 seconds</h2>
-  <div class="say">To summarize: dual-layer idempotency on eventId; persist after downstream success so we don't store orphan events; out-of-order tolerance via commutative balance and chronological listing; graceful degradation — GET /events works from Gateway local DB even if Account is down; layered resiliency — inbound rate limiting and bulkhead, outbound Polly circuit breaker with retry and timeout; OpenTelemetry trace propagation and structured JSON logs. The repo has automated tests covering these scenarios. Happy to go deeper on any design decision.</div>
+  <div class="say">To summarize: dual-layer idempotency on eventId; persist after downstream success so we don't store orphan events; out-of-order tolerance via commutative balance and chronological listing; graceful degradation — POST returns 503 when Account is down, GET /events still serves Gateway local data, balance queries fail clearly; layered resiliency — inbound rate limiting and bulkhead, outbound Polly circuit breaker with retry and timeout; OpenTelemetry trace propagation and structured JSON logs. The repo has automated tests covering these scenarios. Happy to go deeper on any design decision.</div>
 </section>
 
 <section id="reference" class="card">
@@ -613,6 +683,10 @@ docker compose down -v && docker compose up --build</pre>
       <tr><td>8e</td><td>GET events list</td><td>T1, T2, T3 by timestamp</td></tr>
       <tr><td>9</td><td>POST amount -5</td><td><strong>400</strong></td></tr>
       <tr><td>10</td><td>POST type TRANSFER</td><td><strong>400</strong></td></tr>
+      <tr><td>F1</td><td>POST while Account down</td><td><strong>503</strong> · not stored</td></tr>
+      <tr><td>F2</td><td>GET failed event id</td><td><strong>404</strong></td></tr>
+      <tr><td>F3</td><td>GET stored event (section A)</td><td><strong>200</strong></td></tr>
+      <tr><td>F4</td><td>GET balance</td><td>Connection refused</td></tr>
     </tbody>
   </table>
 </section>
@@ -628,6 +702,8 @@ docker compose down -v && docker compose up --build</pre>
       <tr><td>Connection refused on 8081</td><td>Run <code>docker compose up --build</code> or start Account locally</td></tr>
       <tr><td>Balance wrong</td><td>Clean state; run steps in order; don't change event IDs</td></tr>
       <tr><td>Swagger 404</td><td>Use docker-compose (Development) or <code>dotnet run</code> locally</td></tr>
+      <tr><td>Section F 503 but event stored</td><td>Should not happen — verify F2 returns 404; check Gateway logs</td></tr>
+      <tr><td>After section F, POST fails</td><td>Run <code>docker compose start account-service</code> and wait for healthy</td></tr>
     </tbody>
   </table>
 </section>
@@ -643,7 +719,7 @@ docker compose down -v && docker compose up --build</pre>
       <tr><td>Why persist after Account succeeds?</td><td>Avoid orphan events; client retries safely via idempotency</td></tr>
       <tr><td>Why allow negative balance?</td><td>Simpler than holds; commutative sum avoids ordering bugs</td></tr>
       <tr><td>Retry on POST?</td><td>Yes — 3 retries with jitter; safe because Account idempotency keys on eventId</td></tr>
-      <tr><td>What if Account is down?</td><td>POST → 503, event not stored; GET /events still serves local data</td></tr>
+      <tr><td>What if Account is down?</td><td>POST → 503, event not stored; GET /events still serves Gateway local data; balance GET → connection refused</td></tr>
     </tbody>
   </table>
 </section>

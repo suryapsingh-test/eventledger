@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "EventLedger Demo",
-    "description": "End-to-end demo of Event Ledger.\n\n**Run order:** Execute folders A → B → C top to bottom. Folder D (Swagger) is optional.\n\n**Services**\n- Gateway (public): http://localhost:8080\n- Account Service (debug/demo): http://localhost:8081\n\n**Start**\n```powershell\ndocker compose down -v && docker compose up --build\n```\nOr run both .NET projects locally on 8080/8081.\n\n**Fresh demo:** Reset volumes (`docker compose down -v`) or delete local `gateway.db` / `account.db` before re-running — fixed eventIds return **200** (replay) instead of **201** on repeat.\n\n**Status codes (Gateway POST /events)**\n- 201 Created — first submission of an eventId\n- 200 OK — idempotent replay (`Idempotency-Replay: true`)\n- 400 — validation error\n- 429 — inbound rate/concurrency limit\n- 503 — Account Service down (event not stored)\n\n**Resiliency**\n- Inbound: concurrency bulkhead + per-client write rate limit\n- Outbound: Polly circuit breaker → retry (jitter) → timeout",
+    "description": "End-to-end demo of Event Ledger.\n\n**Run order:** Execute folders A → B → C top to bottom. Folders D (Swagger), E (observability), and F (graceful degradation) are optional. **Folder F requires A first.**\n\n**Services**\n- Gateway (public): http://localhost:8080\n- Account Service (debug/demo): http://localhost:8081\n\n**Start**\n```powershell\ndocker compose down -v && docker compose up --build\n```\nOr run both .NET projects locally on 8080/8081.\n\n**Fresh demo:** Reset volumes (`docker compose down -v`) or delete local `gateway.db` / `account.db` before re-running — fixed eventIds return **200** (replay) instead of **201** on repeat.\n\n**Status codes (Gateway POST /events)**\n- 201 Created — first submission of an eventId\n- 200 OK — idempotent replay (`Idempotency-Replay: true`)\n- 400 — validation error\n- 429 — inbound rate/concurrency limit\n- 503 — Account Service down (event not stored)\n\n**Resiliency**\n- Inbound: concurrency bulkhead + per-client write rate limit\n- Outbound: Polly circuit breaker → retry (jitter) → timeout\n\n**Graceful degradation (folder F)**\n1. `docker compose stop account-service`\n2. POST /events → 503; GET /events still serves Gateway local data; balance GET fails (connection refused)\n3. `docker compose start account-service`",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -10,7 +10,8 @@
     { "key": "accountId", "value": "acct-demo-001" },
     { "key": "creditEventId", "value": "evt-credit-1001" },
     { "key": "debitEventId", "value": "evt-debit-1002" },
-    { "key": "outOfOrderAcct", "value": "acct-demo-out-of-order" }
+    { "key": "outOfOrderAcct", "value": "acct-demo-out-of-order" },
+    { "key": "degradeEventId", "value": "evt-degrade-001" }
   ],
   "item": [
     {
@@ -410,6 +411,94 @@
               "raw": "{\n  \"eventId\": \"evt-obs-bad-001\",\n  \"accountId\": \"{{accountId}}\",\n  \"type\": \"CREDIT\",\n  \"amount\": -1.00,\n  \"currency\": \"USD\",\n  \"eventTimestamp\": \"2026-06-26T19:05:00Z\"\n}"
             },
             "url": "{{gatewayUrl}}/events"
+          }
+        }
+      ]
+    },
+    {
+      "name": "F. Optional — Graceful degradation",
+      "description": "**Prerequisites:** Complete folder **A** first (Gateway must have persisted events).\n\n**Stop Account Service:**\n```\ndocker compose stop account-service\n```\nOr stop the local process on port 8081.\n\n**Restart when done:**\n```\ndocker compose start account-service\n```",
+      "item": [
+        {
+          "name": "F1. POST /events while Account down (503)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Returns 503 Service Unavailable', function () {",
+                  "  pm.response.to.have.status(503);",
+                  "});",
+                  "pm.test('ProblemDetails title', function () {",
+                  "  pm.expect(pm.response.json().title).to.eql('Account Service unavailable');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"{{degradeEventId}}\",\n  \"accountId\": \"{{accountId}}\",\n  \"type\": \"CREDIT\",\n  \"amount\": 99.00,\n  \"currency\": \"USD\",\n  \"eventTimestamp\": \"2026-06-26T20:00:00Z\",\n  \"metadata\": { \"source\": \"degradation-demo\" }\n}"
+            },
+            "url": "{{gatewayUrl}}/events"
+          }
+        },
+        {
+          "name": "F2. Event not persisted (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Degraded POST was not stored', function () {",
+                  "  pm.response.to.have.status(404);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayUrl}}/events/{{degradeEventId}}"
+          }
+        },
+        {
+          "name": "F3. GET stored event still works (Gateway local DB)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Returns 200 from Gateway local data', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Original event from section A', function () {",
+                  "  pm.expect(pm.response.json().eventId).to.eql(pm.collectionVariables.get('creditEventId'));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayUrl}}/events/{{creditEventId}}"
+          }
+        },
+        {
+          "name": "F4. Balance query fails (connection refused — manual)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{accountUrl}}/accounts/{{accountId}}/balance",
+            "description": "Expect **connection refused** or request failure — Account Service is stopped. No automated assertion (Postman cannot connect)."
           }
         }
       ]

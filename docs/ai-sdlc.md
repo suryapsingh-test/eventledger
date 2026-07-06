@@ -36,7 +36,7 @@ Message log: [artifacts/agent-comms/message-log.md](../artifacts/agent-comms/mes
 | QA-01 | [qa-engineer](../ai-agent-skills/qa-engineer/SKILL.md) | 2026-06-17 | coverage-summary.md | Coverage aggregation | Approved |
 | PM-01 | [pm-planning](../ai-agent-skills/pm-planning/SKILL.md) | 2026-06-17 | sprint-closeout.md | Sprint closeout | Approved |
 
-> **Post-sprint enhancements** (inbound resilience, O(1) balance, legacy DB migration, expanded tests): **46 tests** total as of final check-in — see [artifacts/07-qa/coverage-summary.md](../artifacts/07-qa/coverage-summary.md) and [README.md](../README.md). QA row counts above reflect deliverables at original sprint close (2026-06-16/17).
+> **Post-sprint enhancements** (inbound resilience, O(1) balance, legacy DB migration, expanded tests): **48 tests** total as of final check-in — see [artifacts/07-qa/coverage-summary.md](../artifacts/07-qa/coverage-summary.md) and [README.md](../README.md). QA row counts above reflect deliverables at original sprint close (2026-06-16/17).
 
 ## Example prompt snippets
 
@@ -74,7 +74,7 @@ You are REV-02. Apply ai-agent-skills/security-reviewer/SKILL.md — OWASP Top 1
 - [x] Trace ID propagated and logged
 - [x] Structured JSON logging + health + custom metric
 - [x] Auditing on Gateway
-- [x] `dotnet test` passes with coverage reports (46/46 as of post-sprint enhancements)
+- [x] `dotnet test` passes with coverage reports (48/48 as of post-sprint enhancements)
 
 ### AI-SDLC process
 - [x] 9 skills, 13 agents, orchestrator workflow

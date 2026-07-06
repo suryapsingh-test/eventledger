@@ -52,8 +52,8 @@ Integration coverage exercises Gateway + Account + Contracts together via real H
 |-------|------:|
 | EventGateway.Tests | 21 |
 | AccountService.Tests | 11 |
-| EventLedger.IntegrationTests | 14 |
-| **Total** | **46** |
+| EventLedger.IntegrationTests | 16 |
+| **Total** | **48** |
 
 ---
 

@@ -489,8 +489,9 @@ These test the **real HTTP path** through the Gateway with a stub or capturing h
 | `ResiliencyTests.cs` | Outbound retry (up to 4 attempts), 503, circuit breaker opens |
 | `OutOfOrderGatewayIntegrationTests.cs` | Listing order across services |
 | `HealthIntegrationTests.cs` | Health endpoints for Gateway and Account |
+| `AccountServiceUnavailableTests.cs` | Balance/account reads fail when Account Service is stopped or unreachable |
 
-Run all tests (**46 total** — 21 Gateway + 11 Account + 14 Integration):
+Run all tests (**48 total** — 21 Gateway + 11 Account + 16 Integration):
 
 ```powershell
 dotnet test src/EventLedger.sln

@@ -8,7 +8,7 @@
 ###   docker compose down -v && docker compose up --build
 ###   OR delete local gateway.db / account.db before dotnet run
 ###
-### Run order: A → B → C top to bottom. Sections D (Swagger) and E (observability) are optional.
+### Run order: A → B → C top to bottom. Sections D (Swagger), E (observability), and F (graceful degradation) are optional.
 ###
 ### Tools: VS Code REST Client, Visual Studio, or Rider — click "Send Request"
 ### Alternative: import demo/EventLedger.postman_collection.json into Postman
@@ -225,4 +225,46 @@ Content-Type: application/json
 
 ### E3. Optional — prove trace propagation via automated test
 #   dotnet test tests/EventLedger.IntegrationTests --filter TracePropagation
+
+###############################################################################
+# F. Optional — Graceful degradation (run AFTER section A)
+#
+# Prerequisites: Section A completed — Gateway has persisted events in gateway.db.
+#
+# Stop Account Service:
+#   docker compose stop account-service
+# OR stop the local dotnet process on port 8081.
+#
+# When finished, restart:
+#   docker compose start account-service
+###############################################################################
+
+@degradeEventId = evt-degrade-001
+
+### F1. POST /events while Account Service is down -> 503 ProblemDetails, event NOT stored
+POST {{gatewayUrl}}/events
+Content-Type: application/json
+
+{
+  "eventId": "{{degradeEventId}}",
+  "accountId": "{{accountId}}",
+  "type": "CREDIT",
+  "amount": 99.00,
+  "currency": "USD",
+  "eventTimestamp": "2026-06-26T20:00:00Z",
+  "metadata": { "source": "degradation-demo" }
+}
+
+### F2. Confirm degraded POST was not persisted -> 404 Not Found
+GET {{gatewayUrl}}/events/{{degradeEventId}}
+
+### F3. GET stored event from section A still works (Gateway local DB only)
+GET {{gatewayUrl}}/events/{{creditEventId}}
+
+### F4. Balance query fails — connection refused (Account Service unreachable)
+GET {{accountUrl}}/accounts/{{accountId}}/balance
+
+### F5. Restart Account Service when done
+#   docker compose start account-service
+# OR restart local dotnet on :8081, then re-run 0b health check.
 
